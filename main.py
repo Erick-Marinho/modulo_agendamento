@@ -1,5 +1,6 @@
 import logging
 from fastapi import FastAPI
+from app.presentation.message_routers import router as message_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -15,6 +16,8 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc"
 )
+
+app.include_router(message_router, prefix="/message", tags=["message"])
 
 @app.get("/", summary="Verifica se o servidor está online")
 async def root():
