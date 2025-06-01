@@ -2,14 +2,15 @@ from langgraph.graph import StateGraph, END
 
 from app.application.agents.state.message_agent_state import MessageAgentState
 from app.application.agents.node_functions.greeting_node import greeting_node
-from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.base import BaseCheckpointSaver
+from app.application.agents.node_functions.despedida import despedida_node
 
 class MessageAgentBuilder:
     """
     Builder para criar o agente de mensagem
     """
 
-    def __init__(self):
+    def __init__(self, checkpointer: BaseCheckpointSaver):
         """
         Inicializa e constroi o grafo do agente de mensagem
         """
@@ -17,7 +18,7 @@ class MessageAgentBuilder:
 
         self._build_graph()
 
-        self._build_agent = self.graph.compile()
+        self._build_agent = self.graph.compile(checkpointer=checkpointer)
 
     def _build_graph(self):
         """
@@ -32,12 +33,14 @@ class MessageAgentBuilder:
         Constroi o nó do agente de mensagem
         """
         self.graph.add_node("greeting", greeting_node)
+        self.graph.add_node("despedida", despedida_node)
 
     def _build_edge(self):
         """
         Constroi as arestas do agente de mensagem
         """
-        self.graph.add_edge("greeting", END)
+        self.graph.add_edge("greeting", "despedida")
+        self.graph.add_edge("despedida", END)
 
     def build_agent(self):
         """
@@ -45,8 +48,3 @@ class MessageAgentBuilder:
         """
         return self._build_agent
     
-    def build_memory_saver(self):
-        """
-        Constroi o MemorySaver
-        """
-        return MemorySaver()
