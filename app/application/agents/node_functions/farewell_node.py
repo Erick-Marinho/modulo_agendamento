@@ -1,7 +1,7 @@
 from app.application.agents.state.message_agent_state import MessageAgentState
 from langchain_core.messages import AIMessage
 
-def despedida_node(state: MessageAgentState) -> dict:
+def farewell_node(state: MessageAgentState) -> dict:
     """
     Função para processar a mensagem de despedida
     """
@@ -16,4 +16,5 @@ def despedida_node(state: MessageAgentState) -> dict:
     
     return {
         "messages": [AIMessage(content=ai_response_text)],
+        "next_step": "despedida"
     }

@@ -16,5 +16,6 @@ def greeting_node(state: MessageAgentState) -> dict:
     
     return {
         "messages": [AIMessage(content=ai_response_text)],
+        "next_step": "greeting"
     }
 

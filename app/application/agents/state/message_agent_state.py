@@ -11,7 +11,7 @@ class MessageAgentState(TypedDict):
     message: str
     phone_number: str
     message_id: str
-    
+    next_step: str
 
     messages: Annotated[list[BaseMessage], add_messages]
 

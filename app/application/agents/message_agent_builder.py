@@ -1,9 +1,13 @@
 from langgraph.graph import StateGraph, END
 
+from app.application.agents.message_router import MessageRouter
+from app.application.agents.node_functions.fallback_node import fallback_node
+from app.application.agents.node_functions.scheduling_node import scheduling_node
+from app.application.agents.node_functions.orquestrator_node import orquestrator_node
 from app.application.agents.state.message_agent_state import MessageAgentState
 from app.application.agents.node_functions.greeting_node import greeting_node
 from langgraph.checkpoint.base import BaseCheckpointSaver
-from app.application.agents.node_functions.despedida import despedida_node
+from app.application.agents.node_functions.farewell_node import farewell_node
 
 class MessageAgentBuilder:
     """
@@ -15,7 +19,7 @@ class MessageAgentBuilder:
         Inicializa e constroi o grafo do agente de mensagem
         """
         self.graph = StateGraph(MessageAgentState)
-
+        self.route_orquestrator = MessageRouter().route_orquestrator
         self._build_graph()
 
         self._build_agent = self.graph.compile(checkpointer=checkpointer)
@@ -25,26 +29,45 @@ class MessageAgentBuilder:
         Adiciona os nós e define as arestas para o workflow do agente.
         """
         self._build_node()
-        self.graph.set_entry_point("greeting")
+        self.graph.set_entry_point("orquestrator_node")
         self._build_edge()
 
     def _build_node(self):
         """
         Constroi o nó do agente de mensagem
         """
-        self.graph.add_node("greeting", greeting_node)
-        self.graph.add_node("despedida", despedida_node)
+        self.graph.add_node("orquestrator_node", orquestrator_node)
+        self.graph.add_node("greeting_node", greeting_node)
+        self.graph.add_node("scheduling_node", scheduling_node)
+        self.graph.add_node("fallback_node", fallback_node)
+
+        self.graph.add_node("farewell_node", farewell_node)
 
     def _build_edge(self):
         """
         Constroi as arestas do agente de mensagem
         """
-        self.graph.add_edge("greeting", "despedida")
-        self.graph.add_edge("despedida", END)
+        self.graph.add_conditional_edges(
+            "orquestrator_node",
+            self.route_orquestrator,
+            {
+                "scheduling": "scheduling_node",
+                "greeting": "greeting_node",
+                "farewell": "farewell_node",
+                "fallback_node": "fallback_node"
+            }
+        )
+        self.graph.add_edge("scheduling_node", END)
+        self.graph.add_edge("greeting_node", END)
+        self.graph.add_edge("fallback_node", END)
+        self.graph.add_edge("farewell_node", END)
 
     def build_agent(self):
         """
         Constroi o agente de mensagem
         """
+
+        print(self._build_agent.get_graph().draw_mermaid())
+        
         return self._build_agent
     
