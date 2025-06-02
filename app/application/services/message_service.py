@@ -52,16 +52,18 @@ class MessageService:
 
         if final_state and final_state.get("messages"):
             logger.info(f"Histórico de mensagens no estado final para thread_id {thread_id}:")
+
             for i, msg in enumerate(final_state["messages"]):
                 logger.info(f"  Msg {i+1}: Type='{msg.type}', Content='{msg.content}'")
+
         else:
             logger.warning(f"Nenhuma mensagem no estado final para thread_id {thread_id}.")
 
         logger.info(f"Mensagem processada: {final_state}")
 
         return MessageResponsePayload(
-            message=final_state.get("message", request_payload.message),
+            message=final_state.get("messages")[-1].content,
             phone_number=final_state.get("phone_number", request_payload.phone_number),
             message_id=final_state.get("message_id", request_payload.message_id),
-            messages=final_state.get("messages", [])
+            # messages=final_state.get("messages", [])
         )

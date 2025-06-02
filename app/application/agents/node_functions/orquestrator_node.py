@@ -18,11 +18,8 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
 
     classification = llm_service.classify_message(last_message)
 
-    logger.info(f"Classificação retornada pelo LLM AAAAAAAAAAAAAAAA: {classification}")
+    logger.info(f"Classificação retornada pelo LLM: {classification}")
     
     state["next_step"] = classification
     
     return state
-
-
-

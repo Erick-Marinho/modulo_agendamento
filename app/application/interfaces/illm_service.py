@@ -7,7 +7,3 @@ class ILLMService(ABC):
     @abstractmethod
     def classify_message(self, message: str) -> str:
         pass
-
-    @abstractmethod
-    async def classify_message_async(self, message: str) -> str:
-        pass

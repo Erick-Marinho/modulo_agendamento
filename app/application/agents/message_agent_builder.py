@@ -66,7 +66,6 @@ class MessageAgentBuilder:
         """
         Constroi o agente de mensagem
         """
-
         print(self._build_agent.get_graph().draw_mermaid())
         
         return self._build_agent
