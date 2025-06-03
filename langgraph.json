@@ -1,0 +1,24 @@
+{
+  "dependencies": [
+    "."
+  ],
+  "graphs": {
+    "agent": {
+      "path": "app.application.agents.message_agent_builder:get_message_agent",
+      "config_schema": {
+        "type": "object",
+        "properties": {
+          "configurable": {
+            "type": "object",
+            "properties": {
+              "thread_id": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "env": ".env"
+}

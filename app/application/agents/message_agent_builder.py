@@ -10,6 +10,7 @@ from langgraph.checkpoint.base import BaseCheckpointSaver
 from app.application.agents.node_functions.farewell_node import farewell_node
 from app.application.agents.node_functions.collection_node import collection_node
 from app.application.agents.node_functions.clarification_node import clarification_node
+from app.infrastructure.persistence.mongodb_saver_checkpointer import MongoDBSaverCheckpointer
 
 class MessageAgentBuilder:
     """
@@ -85,4 +86,14 @@ class MessageAgentBuilder:
         print(self._build_agent.get_graph().draw_mermaid())
         
         return self._build_agent
+    
+async def get_message_agent():
+    mongodb_provider = MongoDBSaverCheckpointer()
+    actual_mongo_checkpointer = await mongodb_provider.create_checkpoint()
+
+    builder = MessageAgentBuilder(checkpointer=actual_mongo_checkpointer)
+
+    agent = builder.build_agent()
+
+    return agent
     

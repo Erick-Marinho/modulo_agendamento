@@ -10,9 +10,35 @@ services:
       - .:/app
     ports:
       - "8000:8000"
-    # environment:
-    #   DATABASE_URL: ${DATABASE_URL_APP_DOCKER}
-    #   DB_ALEMBIC_URL: ${DATABASE_URL_APP_DOCKER}
-    # depends_on:
-    #   db:
-    #     condition: service_healthy
+    environment:
+      # Dentro do Docker, usar nome do serviço
+      MONGODB_URI: mongodb://mongodb:27017
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_MODEL_NAME: ${OPENAI_MODEL_NAME:-gpt-4o-mini}
+      OPENAI_TEMPERATURE: ${OPENAI_TEMPERATURE:-0.2}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+
+  mongodb:
+    image: mongo:7.0
+    container_name: agendamento_mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"  # Expor para acesso externo também
+    volumes:
+      - mongodb_data:/data/db
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ""
+      MONGO_INITDB_ROOT_PASSWORD: ""
+    command: ["mongod", "--bind_ip_all", "--port", "27017"]
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')", "--quiet"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  mongodb_data:
+    driver: local

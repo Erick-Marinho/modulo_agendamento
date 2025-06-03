@@ -1,6 +1,9 @@
 import logging
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from app.presentation.message_routers import router as message_router
+
+load_dotenv()
 
 logging.basicConfig(
     level=logging.INFO,
