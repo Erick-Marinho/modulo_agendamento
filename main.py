@@ -9,6 +9,7 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
+
 app = FastAPI(
     title="Agendamento API",
     description="API para agendamento de serviços",

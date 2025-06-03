@@ -8,6 +8,8 @@ from app.application.agents.state.message_agent_state import MessageAgentState
 from app.application.agents.node_functions.greeting_node import greeting_node
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from app.application.agents.node_functions.farewell_node import farewell_node
+from app.application.agents.node_functions.collection_node import collection_node
+from app.application.agents.node_functions.clarification_node import clarification_node
 
 class MessageAgentBuilder:
     """
@@ -20,6 +22,7 @@ class MessageAgentBuilder:
         """
         self.graph = StateGraph(MessageAgentState)
         self.route_orquestrator = MessageRouter().route_orquestrator
+        self.route_after_clarification = MessageRouter().decide_after_clarification
         self._build_graph()
 
         self._build_agent = self.graph.compile(checkpointer=checkpointer)
@@ -39,9 +42,10 @@ class MessageAgentBuilder:
         self.graph.add_node("orquestrator_node", orquestrator_node)
         self.graph.add_node("greeting_node", greeting_node)
         self.graph.add_node("scheduling_node", scheduling_node)
-        self.graph.add_node("fallback_node", fallback_node)
-
+        self.graph.add_node("collection_node", collection_node)
+        self.graph.add_node("clarification_node", clarification_node)
         self.graph.add_node("farewell_node", farewell_node)
+        self.graph.add_node("fallback_node", fallback_node)
 
     def _build_edge(self):
         """
@@ -57,7 +61,19 @@ class MessageAgentBuilder:
                 "fallback_node": "fallback_node"
             }
         )
-        self.graph.add_edge("scheduling_node", END)
+        self.graph.add_edge("scheduling_node", "collection_node")
+        self.graph.add_edge("collection_node", "clarification_node")
+
+        self.graph.add_conditional_edges(
+            "clarification_node",
+            self.route_after_clarification,
+            {
+                "END_AWAITING_USER": END,
+                "PROCEED_TO_VALIDATION": END,
+                "DEFAULT_END": END,
+            }
+        )
+
         self.graph.add_edge("greeting_node", END)
         self.graph.add_edge("fallback_node", END)
         self.graph.add_edge("farewell_node", END)

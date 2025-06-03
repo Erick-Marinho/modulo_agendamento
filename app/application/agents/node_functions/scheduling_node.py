@@ -1,12 +1,13 @@
-from langchain_core.messages import AIMessage
+import logging
 from app.application.agents.state.message_agent_state import MessageAgentState
 
-def scheduling_node(state: MessageAgentState) -> MessageAgentState:
-    print("Agendamento iniciado")
+logger = logging.getLogger(__name__)
 
-    ai_response_text = "Agendamento iniciado"
-    
-    return {
-        "messages": [AIMessage(content=ai_response_text)],
-        "next_step": "scheduling"
-    }
+def scheduling_node(state: MessageAgentState) -> MessageAgentState:
+    """
+    Nó que inicia o fluxo de agendamento.
+    Prepara para a coleta de informações e passa o estado adiante.
+    """
+    logger.info("Iniciando fluxo de agendamento")
+
+    return state
