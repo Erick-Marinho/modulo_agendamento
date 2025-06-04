@@ -16,6 +16,8 @@ class MessageRouter:
             return "scheduling"
         elif next_step == "scheduling_info":
             return "scheduling_info"
+        elif next_step == "final_confirmation":
+            return "final_confirmation"
         elif next_step == "greeting":
             return "greeting"
         elif next_step == "farewell":

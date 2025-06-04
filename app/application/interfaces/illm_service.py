@@ -55,3 +55,16 @@ class ILLMService(ABC):
             A pergunta gerada pelo LLM para ser enviada ao usuário.
         """
         pass
+
+    @abstractmethod
+    def generate_confirmation_message(self, details: SchedulingDetails) -> str:
+        """
+        Gera uma mensagem de confirmação dos dados de agendamento.
+
+        Args:
+            details: Detalhes do agendamento coletados.
+
+        Returns:
+            Mensagem de confirmação formatada.
+        """
+        pass

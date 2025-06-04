@@ -14,6 +14,8 @@ from app.infrastructure.persistence.mongodb_saver_checkpointer import MongoDBSav
 from app.application.agents.node_functions.sheduling_info_node import scheduling_info_node
 from app.application.agents.node_functions.check_completeness_node import check_completeness_node
 from app.application.agents.node_functions.other_node import other_node
+from app.application.agents.node_functions.validate_and_confirm_node import validate_and_confirm_node
+from app.application.agents.node_functions.final_confirmation_node import final_confirmation_node
 
 class MessageAgentBuilder:
     """
@@ -48,32 +50,32 @@ class MessageAgentBuilder:
         self.graph.add_node("orquestrator_node", orquestrator_node)
         self.graph.add_node("greeting_node", greeting_node)
         self.graph.add_node("scheduling_node", scheduling_node)
-        # inserção
         self.graph.add_node("scheduling_info_node", scheduling_info_node)
         self.graph.add_node("collection_node", collection_node)
         self.graph.add_node("clarification_node", clarification_node)
-        # inserção
         self.graph.add_node("check_completeness_node", check_completeness_node)
+        self.graph.add_node("validate_and_confirm_node", validate_and_confirm_node)
+        self.graph.add_node("final_confirmation_node", final_confirmation_node)
+        self.graph.add_node("other_node", other_node)
         self.graph.add_node("farewell_node", farewell_node)
         self.graph.add_node("fallback_node", fallback_node)
-        # inserção
-        self.graph.add_node("other_node", other_node)
 
     def _build_edge(self):
         """
         Constroi as arestas do agente de mensagem
         """
-        # Fluxo principal
+        # Roteamento inicial do orquestrador
         self.graph.add_conditional_edges(
             "orquestrator_node",
             self.route_orquestrator,
             {
                 "scheduling": "scheduling_node",
-                "scheduling_info": "scheduling_info_node", # inserção
+                "scheduling_info": "scheduling_info_node",
+                "final_confirmation": "final_confirmation_node",
                 "greeting": "greeting_node",
                 "farewell": "farewell_node",
+                "other": "other_node",
                 "fallback_node": "fallback_node",
-                "other": "other_node"
             }
         )
 
@@ -97,11 +99,34 @@ class MessageAgentBuilder:
             lambda state: state.get("next_step", "clarification"),
             {
                 "clarification": "clarification_node",
-                "validate_and_confirm": END 
+                "validate_and_confirm": "validate_and_confirm_node" 
             }
         )
 
-        # Fluxo após esclarecimento
+        # Fluxo após validação e confirmação
+        self.graph.add_conditional_edges(
+            "validate_and_confirm_node",
+            lambda state: state.get("next_step", "clarification"),
+            {
+                "awaiting_final_confirmation": END,
+                "clarification": "clarification_node"
+            }
+        )
+
+        # Quando o usuário responde à confirmação final
+        # Este será ativado quando o orquestrador detectar que estamos esperando confirmação
+        self.graph.add_conditional_edges(
+            "final_confirmation_node",
+            lambda state: state.get("next_step", "completed"),
+            {
+                "appointment_confirmed": END,
+                "awaiting_correction": "clarification_node",
+                "awaiting_final_confirmation": END,
+                "completed": END
+            }
+        )
+
+        # Fluxo do esclarecimento
         self.graph.add_conditional_edges(
             "clarification_node",
             self.route_after_clarification,
@@ -113,10 +138,9 @@ class MessageAgentBuilder:
         )
 
         self.graph.add_edge("greeting_node", END)
+        self.graph.add_edge("other_node", END)
         self.graph.add_edge("fallback_node", END)
         self.graph.add_edge("farewell_node", END)
-        # inserção
-        self.graph.add_edge("other_node", END)
 
     def build_agent(self):
         """

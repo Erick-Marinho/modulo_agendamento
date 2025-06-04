@@ -2,6 +2,7 @@ from langchain_openai import ChatOpenAI
 from app.application.agents.prompts.classify_message_prompt import CLASSIFY_MESSAGE_TEMPLATE
 from app.application.agents.prompts.extract_scheduling_details_prompt import EXTRACT_SCHEDULING_DETAILS_TEMPLATE
 from app.application.agents.prompts.request_missing_info_prompt import REQUEST_MISSING_INFO_TEMPLATE
+from app.application.agents.prompts.generate_confirmation_prompt import GENERATE_CONFIRMATION_TEMPLATE
 from app.application.interfaces.illm_service import ILLMService
 from app.domain.sheduling_details import SchedulingDetails
 from langchain_core.output_parsers import PydanticOutputParser
@@ -80,5 +81,25 @@ class OpenAIService(ILLMService):
             return llm_response.content
         except Exception as e:
             logger.error(f"Erro ao gerar pergunta de esclarecimento: {e}")
+            return None
+    
+    def generate_confirmation_message(self, details: SchedulingDetails) -> str:
+        """
+        Gera uma mensagem de confirmação dos dados de agendamento.
+        """
+        prompt_values = {
+            "professional_name": details.professional_name or "Não especificado",
+            "specialty": details.specialty or "Não especificada",
+            "date_preference": details.date_preference or "Não especificada",
+            "time_preference": details.time_preference or "Não especificado",
+            "service_type": details.service_type or "Não especificado",
+        }
+
+        chain = GENERATE_CONFIRMATION_TEMPLATE | self.client
+        try:
+            llm_response = chain.invoke(prompt_values)
+            return llm_response.content
+        except Exception as e:
+            logger.error(f"Erro ao gerar mensagem de confirmação: {e}")
             return None
     

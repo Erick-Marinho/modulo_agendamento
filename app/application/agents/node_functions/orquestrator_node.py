@@ -2,7 +2,7 @@ import logging
 
 from app.application.agents.state.message_agent_state import MessageAgentState
 from app.infrastructure.services.llm.llm_factory import LLMFactory
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, AIMessage
 
 logger = logging.getLogger(__name__)
 
@@ -14,12 +14,33 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
 
     logger.info(f"--- Executando nó orquestrador ---")
 
+    # Verifica se estamos em um contexto específico
+    conversation_context = state.get("conversation_context")
+
+    if conversation_context == "awaiting_confirmation":
+        logger.info("Usuário está respondendo a uma confirmação")
+        return {**state, "next_step": "final_confirmation"}
+
+    # Pega a última mensagem do usuário
     messages = state.get("messages", [])
 
     if not messages:
         logger.warning("Nenhuma mensagem encontrada no estado.")
         return {**state, "next_step": "unclear"}
     
+    # Verifica se a última mensagem do assistente estava pedindo confirmação
+    if len(messages) >= 2:
+        last_ai_message = None
+        for msg in reversed(messages[:-1]):  # Exclui a última (que deve ser do usuário)
+            if isinstance(msg, AIMessage):
+                last_ai_message = msg.content.lower()
+                break
+        
+        if last_ai_message and ("confirmar" in last_ai_message or "corretas" in last_ai_message):
+            logger.info("Detectado contexto de confirmação na conversa")
+            return {**state, "next_step": "final_confirmation", "conversation_context": "awaiting_confirmation"}
+    
+    # Encontra a última mensagem humana
     last_human_message = None
 
     for msg in reversed(messages):
@@ -35,7 +56,6 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
 
     try:
         llm_service = LLMFactory.create_llm_service("openai")
-        
         classification = llm_service.classify_message(last_human_message)
         
         classification = classification.strip().lower()
@@ -48,7 +68,11 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
             logger.warning(f"Classificação inválida: '{classification}'. Usando 'unclear' como fallback.")
             classification = "unclear"
         
-        return {**state, "next_step": classification}
+        context = None
+        if classification in ["scheduling", "scheduling_info"]:
+            context = "scheduling"
+        
+        return {**state, "next_step": classification, "conversation_context": context}
         
     except Exception as e:
         logger.error(f"Erro ao classificar mensagem: {e}")
