@@ -44,9 +44,6 @@ def collection_node(state: MessageAgentState) -> MessageAgentState:
         extracted_data = llm_service.extract_scheduling_details(user_message=conversation_hitory_str)
 
         logger.info(f"Detalhes do agendamento extraídos: {extracted_data}")
-        # previous_state: Optional[SchedulingDetails] = state.get("extracted_scheduling_details")
-        # new_details = {**previous_state, **extracted_data}
-        # print("new_details ---------->", new_details)
 
         return {**state, "extracted_scheduling_details": extracted_data}
     except Exception as e:

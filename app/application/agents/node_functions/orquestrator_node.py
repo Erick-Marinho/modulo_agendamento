@@ -35,6 +35,7 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
 
     try:
         llm_service = LLMFactory.create_llm_service("openai")
+        
         classification = llm_service.classify_message(last_human_message)
         
         classification = classification.strip().lower()

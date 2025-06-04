@@ -11,6 +11,9 @@ from app.application.agents.node_functions.farewell_node import farewell_node
 from app.application.agents.node_functions.collection_node import collection_node
 from app.application.agents.node_functions.clarification_node import clarification_node
 from app.infrastructure.persistence.mongodb_saver_checkpointer import MongoDBSaverCheckpointer
+from app.application.agents.node_functions.sheduling_info_node import scheduling_info_node
+from app.application.agents.node_functions.check_completeness_node import check_completeness_node
+from app.application.agents.node_functions.other_node import other_node
 
 class MessageAgentBuilder:
     """
@@ -24,6 +27,8 @@ class MessageAgentBuilder:
         self.graph = StateGraph(MessageAgentState)
         self.route_orquestrator = MessageRouter().route_orquestrator
         self.route_after_clarification = MessageRouter().decide_after_clarification
+        # inserção
+        self.route_after_completeness_check = MessageRouter().route_after_completeness_check
         self._build_graph()
 
         self._build_agent = self.graph.compile(checkpointer=checkpointer)
@@ -43,28 +48,60 @@ class MessageAgentBuilder:
         self.graph.add_node("orquestrator_node", orquestrator_node)
         self.graph.add_node("greeting_node", greeting_node)
         self.graph.add_node("scheduling_node", scheduling_node)
+        # inserção
+        self.graph.add_node("scheduling_info_node", scheduling_info_node)
         self.graph.add_node("collection_node", collection_node)
         self.graph.add_node("clarification_node", clarification_node)
+        # inserção
+        self.graph.add_node("check_completeness_node", check_completeness_node)
         self.graph.add_node("farewell_node", farewell_node)
         self.graph.add_node("fallback_node", fallback_node)
+        # inserção
+        self.graph.add_node("other_node", other_node)
 
     def _build_edge(self):
         """
         Constroi as arestas do agente de mensagem
         """
+        # Fluxo principal
         self.graph.add_conditional_edges(
             "orquestrator_node",
             self.route_orquestrator,
             {
                 "scheduling": "scheduling_node",
+                "scheduling_info": "scheduling_info_node", # inserção
                 "greeting": "greeting_node",
                 "farewell": "farewell_node",
-                "fallback_node": "fallback_node"
+                "fallback_node": "fallback_node",
+                "other": "other_node"
             }
         )
+
+        # Fluxo do agendamento inicial
         self.graph.add_edge("scheduling_node", "collection_node")
         self.graph.add_edge("collection_node", "clarification_node")
 
+        # Fluxo quando recebemos informações de agendamento
+        self.graph.add_conditional_edges(
+            "scheduling_info_node",
+            lambda state: state.get("next_step", "clarification"),
+            {
+                "check_completeness": "check_completeness_node",
+                "clarification": "clarification_node"
+            }
+        )
+
+        # Fluxo após verificar completude
+        self.graph.add_conditional_edges(
+            "check_completeness_node",
+            lambda state: state.get("next_step", "clarification"),
+            {
+                "clarification": "clarification_node",
+                "validate_and_confirm": END 
+            }
+        )
+
+        # Fluxo após esclarecimento
         self.graph.add_conditional_edges(
             "clarification_node",
             self.route_after_clarification,
@@ -78,6 +115,8 @@ class MessageAgentBuilder:
         self.graph.add_edge("greeting_node", END)
         self.graph.add_edge("fallback_node", END)
         self.graph.add_edge("farewell_node", END)
+        # inserção
+        self.graph.add_edge("other_node", END)
 
     def build_agent(self):
         """
@@ -90,7 +129,7 @@ class MessageAgentBuilder:
 async def get_message_agent():
     mongodb_provider = MongoDBSaverCheckpointer()
     
-    actual_mongo_checkpointer = await mongodb_provider.create_checkpoint()
+    actual_mongo_checkpointer = mongodb_provider.create_checkpoint()
 
     builder = MessageAgentBuilder(checkpointer=actual_mongo_checkpointer)
 
