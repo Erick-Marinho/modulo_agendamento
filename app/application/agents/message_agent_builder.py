@@ -89,6 +89,7 @@ class MessageAgentBuilder:
     
 async def get_message_agent():
     mongodb_provider = MongoDBSaverCheckpointer()
+    
     actual_mongo_checkpointer = await mongodb_provider.create_checkpoint()
 
     builder = MessageAgentBuilder(checkpointer=actual_mongo_checkpointer)

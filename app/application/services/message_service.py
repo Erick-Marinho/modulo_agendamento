@@ -16,17 +16,19 @@ class MessageService:
     Serviço para processar a mensagem recebida
     """
 
-    def __init__(self, checkpointer: SaveCheckpointInterface = Depends(MongoDBSaverCheckpointer)):
+    def __init__(self, agent):
         """
         Inicializa o serviço de mensagem
 
         Args:
             checkpointer: SaveCheckpointInterface (MongoDBSaver oficial por padrão)
         """
-        self.checkpointer = checkpointer
-        self.message_agent_builder = MessageAgentBuilder(checkpointer=checkpointer.create_checkpoint())
-        self.message_agent = self.message_agent_builder.build_agent()
-        logger.info("MessageService inicializado com MongoDBSaver LangGraph")
+        if agent is None:
+            logger.error("Agente não inicializado - MessageService não pode ser inicializado")
+            raise ValueError("O agente não pode ser None para o MessageService")
+        
+        self.message_agent = agent
+        logger.info("MessageService inicializado com o agente de mensagem injetado")
 
     async def process_message(self, request_payload: MessageRequestPayload) -> MessageResponsePayload:
         """
@@ -62,7 +64,10 @@ class MessageService:
             else:
                 logger.warning(f"Nenhuma mensagem no estado final para thread_id {thread_id}.")
 
-            logger.info(f"Mensagem processada com sucesso para thread_id: {thread_id}")
+            # "Resposta padrão se não houver mensagens."
+            # last_ai_message_content = "Resposta padrão se não houver mensagens."
+            # if final_state.get("messages"):
+            #     last_ai_message_content = final_state["messages"][-1].content # type: ignore
 
             return MessageResponsePayload(
                 message=final_state.get("messages")[-1].content,

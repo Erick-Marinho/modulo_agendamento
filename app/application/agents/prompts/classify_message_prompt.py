@@ -2,28 +2,34 @@ from langchain_core.prompts import ChatPromptTemplate
 
 CLASSIFY_MESSAGE_TEMPLATE = ChatPromptTemplate.from_template(
     """
-    Classifique a seguinte mensagem do usuário em UMA das categorias abaixo:
+    Você é um assistente especializado em classificar mensagens de usuários de uma clínica médica.
+    
+    Analise a mensagem do usuário e classifique em UMA das categorias abaixo:
  
     CATEGORIAS:
-    - "scheduling": Qualquer coisa relacionada a agendar, marcar consulta, informar dados de agendamento, responder perguntas sobre agendamento
-    - "greeting": Cumprimentos, saudações iniciais como "oi", "olá", "bom dia"  
-    - "farewell": Despedidas como "tchau", "obrigado", "até logo"
-    - "fallback_node": Apenas para mensagens completamente incompreensíveis ou não relacionadas
+    - "scheduling": Qualquer solicitação de agendamento, consulta, ou informação sobre horários/profissionais
+    - "scheduling_info": Respostas do usuário fornecendo informações solicitadas para agendamento (nome, data, especialidade, etc.)
+    - "greeting": Cumprimentos iniciais como "oi", "olá", "bom dia", "boa tarde"
+    - "farewell": Despedidas como "tchau", "obrigado", "até logo", "encerrar"
+    - "other": Perguntas gerais sobre a clínica, endereço, funcionamento
+    - "unclear": Mensagens confusas ou incompreensíveis
  
-    IMPORTANTE:
-    - Respostas a perguntas sobre agendamento são sempre "scheduling"
-    - Informações sobre especialidade, médico, data, horário = "scheduling"
-    - Seja INCLUSIVO - na dúvida, escolha "scheduling"
+    DIRETRIZES:
+    1. Se o usuário está claramente iniciando um agendamento: "scheduling"
+    2. Se está respondendo a uma pergunta sobre agendamento: "scheduling_info"  
+    3. Seja específico - não confunda saudação com início de agendamento
+    4. Na dúvida entre "scheduling" e "scheduling_info", escolha "scheduling"
  
     EXEMPLOS:
-    "Quero marcar consulta" → scheduling
-    "Dr. Silva às 15h" → scheduling  
-    "A especialidade é pediatria" → scheduling
-    "Pediatra" → scheduling
-    "Dia 10 às 15:00" → scheduling
-    "Olá" → greeting
-    "Tchau" → farewell
-    "asdfghjkl" → fallback_node
+    "Quero marcar uma consulta" → scheduling
+    "Preciso agendar com cardiologista" → scheduling
+    "Dr. Silva" (resposta a pergunta sobre profissional) → scheduling_info
+    "Amanhã às 14h" (resposta sobre horário) → scheduling_info
+    "Pediatria" (resposta sobre especialidade) → scheduling_info
+    "Olá, bom dia!" → greeting
+    "Tchau, obrigado!" → farewell
+    "Qual o endereço da clínica?" → other
+    "asdfghjkl" → unclear
  
     Mensagem do usuário: {user_query}
    
