@@ -1,4 +1,5 @@
 from app.application.agents.state.message_agent_state import MessageAgentState
+from app.infrastructure.services.llm.llm_factory import LLMFactory
 from langchain_core.messages import AIMessage
 import logging
 
@@ -14,11 +15,12 @@ def other_node(state: MessageAgentState) -> MessageAgentState:
     
     # Por enquanto, uma resposta simples
     # No futuro, aqui podemos integrar informações reais da clínica
-    ai_response_text = (
-        "Posso ajudar com informações gerais sobre nossa clínica. "
-        "Para agendamentos, me informe a especialidade, profissional, data e horário desejados. "
-        "Para outras dúvidas, entre em contato conosco diretamente."
-    )
+    try:
+        llm_service = LLMFactory.create_llm_service("openai")
+        ai_response_text = llm_service.generate_general_help_message()
+    except Exception as e:
+        logger.error(f"Erro ao gerar mensagem de ajuda via IA: {e}")
+        ai_response_text = "Posso ajudar com agendamentos. Informe profissional, data e horário."
     
     updated_messages = current_messages + [AIMessage(content=ai_response_text)]
     

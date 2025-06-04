@@ -3,6 +3,9 @@ from app.application.agents.prompts.classify_message_prompt import CLASSIFY_MESS
 from app.application.agents.prompts.extract_scheduling_details_prompt import EXTRACT_SCHEDULING_DETAILS_TEMPLATE
 from app.application.agents.prompts.request_missing_info_prompt import REQUEST_MISSING_INFO_TEMPLATE
 from app.application.agents.prompts.generate_confirmation_prompt import GENERATE_CONFIRMATION_TEMPLATE
+from app.application.agents.prompts.generate_success_message_prompt import GENERATE_SUCCESS_MESSAGE_TEMPLATE
+from app.application.agents.prompts.generate_correction_request_prompt import GENERATE_CORRECTION_REQUEST_TEMPLATE
+from app.application.agents.prompts.generate_general_help_prompt import GENERATE_GENERAL_HELP_TEMPLATE
 from app.application.interfaces.illm_service import ILLMService
 from app.domain.sheduling_details import SchedulingDetails
 from langchain_core.output_parsers import PydanticOutputParser
@@ -103,3 +106,87 @@ class OpenAIService(ILLMService):
             logger.error(f"Erro ao gerar mensagem de confirmação: {e}")
             return None
     
+    def generate_success_message(self) -> str:
+        """
+        Gera uma mensagem de sucesso após confirmação do agendamento.
+        """
+        chain = GENERATE_SUCCESS_MESSAGE_TEMPLATE | self.client
+        try:
+            llm_response = chain.invoke({})
+            return llm_response.content
+        except Exception as e:
+            logger.error(f"Erro ao gerar mensagem de sucesso: {e}")
+            return "Dados confirmados com sucesso!"
+        
+    def generate_correction_request_message(self) -> str:
+        """
+        Gera uma mensagem solicitando correção de dados.
+        """
+        chain = GENERATE_CORRECTION_REQUEST_TEMPLATE | self.client
+        try:
+            llm_response = chain.invoke({})
+            return llm_response.content
+        except Exception as e:
+            logger.error(f"Erro ao gerar mensagem de correção: {e}")
+            return "Me informe o que gostaria de alterar."
+
+    def generate_general_help_message(self) -> str:
+        """
+        Gera uma mensagem de ajuda geral sobre a clínica.
+        """
+        chain = GENERATE_GENERAL_HELP_TEMPLATE | self.client
+        try:
+            llm_response = chain.invoke({})
+            return llm_response.content
+        except Exception as e:
+            logger.error(f"Erro ao gerar mensagem de ajuda: {e}")
+            return "Posso ajudar com agendamentos. Informe profissional, data e horário."
+
+    def generate_unclear_response_message(self) -> str:
+        """
+        Gera uma mensagem quando a resposta do usuário não é clara.
+        """
+        # Prompt simples inline para este caso
+        prompt = "Gere uma pergunta curta e amigável pedindo confirmação: 'sim' ou 'não' para agendamento. Seja natural e conciso."
+        try:
+            llm_response = self.client.invoke(prompt)
+            return llm_response.content
+        except Exception as e:
+            logger.error(f"Erro ao gerar mensagem de esclarecimento: {e}")
+            return "Confirma os dados? Responda 'sim' ou 'não'."
+
+    def generate_greeting_message(self) -> str:
+        """
+        Gera uma mensagem de saudação.
+        """
+        prompt = "Gere uma saudação amigável e profissional para assistente de agendamento médico. Seja conciso."
+        try:
+            llm_response = self.client.invoke(prompt)
+            return llm_response.content
+        except Exception as e:
+            logger.error(f"Erro ao gerar saudação: {e}")
+            return "Olá! Como posso ajudar você?"
+
+    def generate_farewell_message(self) -> str:
+        """
+        Gera uma mensagem de despedida.
+        """
+        prompt = "Gere uma despedida amigável e profissional. Seja conciso e natural."
+        try:
+            llm_response = self.client.invoke(prompt)
+            return llm_response.content
+        except Exception as e:
+            logger.error(f"Erro ao gerar despedida: {e}")
+            return "Até mais! Tenha um ótimo dia!"
+
+    def generate_fallback_message(self) -> str:
+        """
+        Gera uma mensagem quando não entende o usuário.
+        """
+        prompt = "Gere uma mensagem amigável quando não entender o que o usuário disse. Peça para tentar novamente. Seja conciso."
+        try:
+            llm_response = self.client.invoke(prompt)
+            return llm_response.content
+        except Exception as e:
+            logger.error(f"Erro ao gerar mensagem de fallback: {e}")
+            return "Não entendi bem. Pode tentar novamente?"

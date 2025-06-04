@@ -68,3 +68,73 @@ class ILLMService(ABC):
             Mensagem de confirmação formatada.
         """
         pass
+
+    @abstractmethod
+    def generate_success_message(self) -> str:
+        """
+        Gera uma mensagem de sucesso após confirmação do agendamento.
+        
+        Returns:
+            Mensagem de sucesso humanizada.
+        """
+        pass
+
+    @abstractmethod
+    def generate_correction_request_message(self) -> str:
+        """
+        Gera uma mensagem solicitando correção de dados.
+        
+        Returns:
+            Mensagem para solicitar correções.
+        """
+        pass
+
+    @abstractmethod
+    def generate_unclear_response_message(self) -> str:
+        """
+        Gera uma mensagem quando a resposta do usuário não é clara.
+        
+        Returns:
+            Mensagem de esclarecimento.
+        """
+        pass
+
+    @abstractmethod
+    def generate_general_help_message(self) -> str:
+        """
+        Gera uma mensagem de ajuda geral sobre a clínica.
+        
+        Returns:
+            Mensagem de ajuda humanizada.
+        """
+        pass
+
+    @abstractmethod
+    def generate_greeting_message(self) -> str:
+        """
+        Gera uma mensagem de saudação.
+        
+        Returns:
+            Mensagem de saudação humanizada.
+        """
+        pass
+
+    @abstractmethod
+    def generate_farewell_message(self) -> str:
+        """
+        Gera uma mensagem de despedida.
+        
+        Returns:
+            Mensagem de despedida humanizada.
+        """
+        pass
+
+    @abstractmethod
+    def generate_fallback_message(self) -> str:
+        """
+        Gera uma mensagem quando não entende o usuário.
+        
+        Returns:
+            Mensagem de fallback humanizada.
+        """
+        pass

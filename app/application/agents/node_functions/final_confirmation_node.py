@@ -64,11 +64,12 @@ def _handle_confirmed_appointment(state: MessageAgentState) -> MessageAgentState
     
     current_messages = state.get("messages", [])
     
-    success_message = (
-        "Excelente! Seu agendamento foi confirmado com sucesso. "
-        "Em breve você receberá mais detalhes sobre o processo. "
-        "Obrigado por escolher nossa clínica!"
-    )
+    try:
+        llm_service = LLMFactory.create_llm_service("openai")
+        success_message = llm_service.generate_success_message()
+    except Exception as e:
+        logger.error(f"Erro ao gerar mensagem de sucesso via IA: {e}")
+        success_message = "Dados confirmados com sucesso!"
     
     updated_messages = current_messages + [AIMessage(content=success_message)]
     
@@ -86,14 +87,15 @@ def _handle_rejected_appointment(state: MessageAgentState) -> MessageAgentState:
     
     current_messages = state.get("messages", [])
     
-    correction_message = (
-        "Entendi! Vamos corrigir as informações. "
-        "Me informe o que você gostaria de alterar (profissional, data, horário, etc.)."
-    )
+    try:
+        llm_service = LLMFactory.create_llm_service("openai")
+        correction_message = llm_service.generate_correction_request_message()
+    except Exception as e:
+        logger.error(f"Erro ao gerar mensagem de correção via IA: {e}")
+        correction_message = "Me informe o que gostaria de alterar."
     
     updated_messages = current_messages + [AIMessage(content=correction_message)]
     
-    # Volta para o estado de coleta de informações
     return {
         **state,
         "messages": updated_messages,
@@ -108,11 +110,12 @@ def _handle_unclear_response(state: MessageAgentState) -> MessageAgentState:
     
     current_messages = state.get("messages", [])
     
-    clarification_message = (
-        "Não entendi bem sua resposta. "
-        "Você confirma o agendamento com essas informações? "
-        "Responda 'sim' para confirmar ou 'não' se quiser alterar algo."
-    )
+    try:
+        llm_service = LLMFactory.create_llm_service("openai")
+        clarification_message = llm_service.generate_unclear_response_message()
+    except Exception as e:
+        logger.error(f"Erro ao gerar mensagem de esclarecimento via IA: {e}")
+        clarification_message = "Confirma os dados? Responda 'sim' ou 'não'."
     
     updated_messages = current_messages + [AIMessage(content=clarification_message)]
     
