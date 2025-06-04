@@ -25,8 +25,10 @@ def final_confirmation_node(state: MessageAgentState) -> MessageAgentState:
     
     if confirmation_result == "confirmed":
         return _handle_confirmed_appointment(state)
-    elif confirmation_result == "rejected":
-        return _handle_rejected_appointment(state)
+    elif confirmation_result == "simple_rejection":
+        return _handle_simple_rejection(state)
+    elif confirmation_result == "correction_with_data":
+        return _handle_correction_with_data(state)
     else:
         return _handle_unclear_response(state)
 
@@ -39,22 +41,42 @@ def _get_last_user_message(messages):
 
 def _classify_confirmation_response(message: str) -> str:
     """
-    Classifica a resposta do usuário como confirmada, rejeitada ou unclear.
+    Classifica a resposta do usuário usando LLM para maior precisão.
+    """
+    try:
+        llm_service = LLMFactory.create_llm_service("openai")
+        classification = llm_service.classify_confirmation_response(message)
+        logger.info(f"🤖 LLM classificou '{message}' como: '{classification}'")
+        return classification
+        
+    except Exception as e:
+        logger.error(f"Erro na classificação LLM, usando fallback: {e}")
+        return _classify_confirmation_response_fallback(message)
+    
+def _classify_confirmation_response_fallback(message: str) -> str:
+    """
+    Fallback simples caso o LLM falhe.
     """
     message_lower = message.lower().strip()
     
-    # Palavras que indicam confirmação
-    confirm_words = ["sim", "confirmar", "confirmo", "correto", "certo", "ok", "perfeito", "isso mesmo"]
-    
-    # Palavras que indicam rejeição/correção
-    reject_words = ["não", "nao", "errado", "incorreto", "mudar", "alterar", "corrigir"]
-    
-    if any(word in message_lower for word in confirm_words):
+    if message_lower in ["sim", "ok", "correto", "certo", "perfeito", "isso mesmo"]:
         return "confirmed"
-    elif any(word in message_lower for word in reject_words):
-        return "rejected"
-    else:
-        return "unclear"
+    
+    if message_lower in ["não", "nao", "quero mudar", "quero alterar", "preciso alterar"]:
+        return "simple_rejection"
+    
+    has_numbers = any(char.isdigit() for char in message_lower)
+    has_specific_data = any(word in message_lower for word in [
+        "para", "dr", "dra", "manhã", "tarde", "noite", 
+        "segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo",
+        "cardiologia", "pediatria", "ortopedia", "h", ":"
+    ])
+    
+    if has_numbers or has_specific_data:
+        return "correction_with_data"
+    
+    return "unclear"
+
 
 def _handle_confirmed_appointment(state: MessageAgentState) -> MessageAgentState:
     """
@@ -79,29 +101,6 @@ def _handle_confirmed_appointment(state: MessageAgentState) -> MessageAgentState
         "next_step": "appointment_confirmed"
     }
 
-def _handle_rejected_appointment(state: MessageAgentState) -> MessageAgentState:
-    """
-    Lida com agendamento rejeitado/correção solicitada.
-    """
-    logger.info("Usuário solicitou correção no agendamento")
-    
-    current_messages = state.get("messages", [])
-    
-    try:
-        llm_service = LLMFactory.create_llm_service("openai")
-        correction_message = llm_service.generate_correction_request_message()
-    except Exception as e:
-        logger.error(f"Erro ao gerar mensagem de correção via IA: {e}")
-        correction_message = "Me informe o que gostaria de alterar."
-    
-    updated_messages = current_messages + [AIMessage(content=correction_message)]
-    
-    return {
-        **state,
-        "messages": updated_messages,
-        "next_step": "awaiting_correction"
-    }
-
 def _handle_unclear_response(state: MessageAgentState) -> MessageAgentState:
     """
     Lida com resposta não clara do usuário.
@@ -123,4 +122,38 @@ def _handle_unclear_response(state: MessageAgentState) -> MessageAgentState:
         **state,
         "messages": updated_messages,
         "next_step": "awaiting_final_confirmation"
+    }
+
+def _handle_simple_rejection(state: MessageAgentState) -> MessageAgentState:
+    """
+    Usuário quer alterar mas não especificou o que.
+    """
+    logger.info("Usuário quer alterar mas não especificou dados")
+    
+    current_messages = state.get("messages", [])
+    
+    try:
+        llm_service = LLMFactory.create_llm_service("openai")
+        correction_message = llm_service.generate_correction_request_message()
+    except Exception as e:
+        logger.error(f"Erro ao gerar mensagem de correção via IA: {e}")
+        correction_message = "Me informe o que gostaria de alterar."
+    
+    updated_messages = current_messages + [AIMessage(content=correction_message)]
+    
+    return {
+        **state,
+        "messages": updated_messages,
+        "next_step": "awaiting_correction"
+    }
+
+def _handle_correction_with_data(state: MessageAgentState) -> MessageAgentState:
+    """
+    Usuário já forneceu dados para correção - processa diretamente.
+    """
+    logger.info("Usuário forneceu dados de correção diretamente - processando")
+    
+    return {
+        **state,
+        "next_step": "scheduling_info"
     }

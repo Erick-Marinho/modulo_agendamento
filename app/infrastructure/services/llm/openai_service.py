@@ -6,6 +6,7 @@ from app.application.agents.prompts.generate_confirmation_prompt import GENERATE
 from app.application.agents.prompts.generate_success_message_prompt import GENERATE_SUCCESS_MESSAGE_TEMPLATE
 from app.application.agents.prompts.generate_correction_request_prompt import GENERATE_CORRECTION_REQUEST_TEMPLATE
 from app.application.agents.prompts.generate_general_help_prompt import GENERATE_GENERAL_HELP_TEMPLATE
+from app.application.agents.prompts.classify_confirmation_response_prompt import CLASSIFY_CONFIRMATION_RESPONSE_TEMPLATE
 from app.application.interfaces.illm_service import ILLMService
 from app.domain.sheduling_details import SchedulingDetails
 from langchain_core.output_parsers import PydanticOutputParser
@@ -146,7 +147,7 @@ class OpenAIService(ILLMService):
         """
         Gera uma mensagem quando a resposta do usuário não é clara.
         """
-        # Prompt simples inline para este caso
+        # Prompt simples
         prompt = "Gere uma pergunta curta e amigável pedindo confirmação: 'sim' ou 'não' para agendamento. Seja natural e conciso."
         try:
             llm_response = self.client.invoke(prompt)
@@ -190,3 +191,44 @@ class OpenAIService(ILLMService):
         except Exception as e:
             logger.error(f"Erro ao gerar mensagem de fallback: {e}")
             return "Não entendi bem. Pode tentar novamente?"
+    
+    def generate_confirmation_message(self, details: SchedulingDetails) -> str:
+        """
+        Gera uma mensagem de confirmação dos dados de agendamento.
+        """
+        prompt_values = {
+            "professional_name": details.professional_name or "Não especificado",
+            "specialty": details.specialty or "Não especificada",
+            "date_preference": details.date_preference or "Não especificada",
+            "time_preference": details.time_preference or "Não especificado",
+            "service_type": details.service_type or "Não especificado",
+        }
+
+        chain = GENERATE_CONFIRMATION_TEMPLATE | self.client
+        try:
+            llm_response = chain.invoke(prompt_values)
+            return llm_response.content
+        except Exception as e:
+            logger.error(f"Erro ao gerar mensagem de confirmação: {e}")
+            return None
+
+    def classify_confirmation_response(self, user_response: str) -> str:
+        """
+        Classifica a resposta do usuário sobre confirmação de agendamento.
+        """
+        chain = CLASSIFY_CONFIRMATION_RESPONSE_TEMPLATE | self.client
+        try:
+            llm_response = chain.invoke({"user_response": user_response})
+            classification = llm_response.content.strip().lower()
+            
+            valid_categories = ["confirmed", "simple_rejection", "correction_with_data", "unclear"]
+            if classification in valid_categories:
+                logger.info(f"Classificação válida: '{classification}' para '{user_response}'")
+                return classification
+            else:
+                logger.warning(f"Classificação inválida do LLM: '{classification}'. Usando fallback.")
+                return "unclear"
+                
+        except Exception as e:
+            logger.error(f"Erro ao classificar resposta de confirmação: {e}")
+            return "unclear"

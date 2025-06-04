@@ -120,7 +120,7 @@ class MessageAgentBuilder:
             lambda state: state.get("next_step", "completed"),
             {
                 "appointment_confirmed": END,
-                "awaiting_correction": "clarification_node",
+                "awaiting_correction": END,
                 "awaiting_final_confirmation": END,
                 "completed": END
             }

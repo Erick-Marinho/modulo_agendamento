@@ -14,6 +14,15 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
 
     logger.info(f"--- Executando nó orquestrador ---")
 
+    current_next_step = state.get("next_step", "")
+    if current_next_step == "awaiting_final_confirmation":
+        logger.info("Estado indica que estamos aguardando confirmação final")
+        return {**state, "next_step": "final_confirmation"}
+    
+    if current_next_step == "awaiting_correction":
+        logger.info("Estado indica que estamos aguardando correção - direcionando para scheduling_info")
+        return {**state, "next_step": "scheduling_info"}
+
     # Verifica se estamos em um contexto específico
     conversation_context = state.get("conversation_context")
 
@@ -23,10 +32,6 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
 
     # Pega a última mensagem do usuário
     messages = state.get("messages", [])
-
-    if not messages:
-        logger.warning("Nenhuma mensagem encontrada no estado.")
-        return {**state, "next_step": "unclear"}
     
     # Verifica se a última mensagem do assistente estava pedindo confirmação
     if len(messages) >= 2:
@@ -36,9 +41,9 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
                 last_ai_message = msg.content.lower()
                 break
         
-        if last_ai_message and ("confirmar" in last_ai_message or "corretas" in last_ai_message):
+        if last_ai_message and ("alterar" in last_ai_message or "corrigir" in last_ai_message):
             logger.info("Detectado contexto de confirmação na conversa")
-            return {**state, "next_step": "final_confirmation", "conversation_context": "awaiting_confirmation"}
+            return {**state, "next_step": "sheduling_info", "conversation_context": "sheduling"}
     
     # Encontra a última mensagem humana
     last_human_message = None

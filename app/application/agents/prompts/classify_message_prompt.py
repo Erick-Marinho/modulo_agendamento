@@ -26,6 +26,10 @@ CLASSIFY_MESSAGE_TEMPLATE = ChatPromptTemplate.from_template(
     "Dr. Silva" (resposta a pergunta sobre profissional) → scheduling_info
     "Amanhã às 14h" (resposta sobre horário) → scheduling_info
     "Pediatria" (resposta sobre especialidade) → scheduling_info
+    "Quero para o dia 21" (correção de data) → scheduling_info
+    "Mudar para Dr. João" (correção de profissional) → scheduling_info
+    "Prefiro às 15h" (correção de horário) → scheduling_info
+    "Cardiologia ao invés" (correção de especialidade) → scheduling_info
     "Olá, bom dia!" → greeting
     "Tchau, obrigado!" → farewell
     "Qual o endereço da clínica?" → other

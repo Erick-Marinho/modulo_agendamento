@@ -138,3 +138,29 @@ class ILLMService(ABC):
             Mensagem de fallback humanizada.
         """
         pass
+
+    @abstractmethod
+    def generate_confirmation_message(self, details: SchedulingDetails) -> str:
+        """
+        Gera uma mensagem de confirmação dos dados de agendamento.
+
+        Args:
+            details: Detalhes do agendamento coletados.
+
+        Returns:
+            Mensagem de confirmação formatada.
+        """
+        pass
+
+    @abstractmethod
+    def classify_confirmation_response(self, user_response: str) -> str:
+        """
+        Classifica a resposta do usuário sobre confirmação de agendamento.
+        
+        Args:
+            user_response: Resposta do usuário à pergunta de confirmação
+            
+        Returns:
+            Categoria: "confirmed", "simple_rejection", "correction_with_data", ou "unclear"
+        """
+        pass
