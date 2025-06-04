@@ -28,6 +28,7 @@ class MessageService:
         self.message_agent = self.message_agent_builder.build_agent()
         logger.info("MessageService inicializado com MongoDBSaver LangGraph")
 
+
     async def process_message(self, request_payload: MessageRequestPayload) -> MessageResponsePayload:
         """
         Processa a mensagem recebida

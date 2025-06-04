@@ -19,14 +19,14 @@ class MongoDBSaverCheckpointer(SaveCheckpointInterface):
         self._checkpointer = None
         logger.info(f"MongoDBSaverCheckpointer inicializado com URI: {self.mongodb_uri}")
 
-    async def create_checkpoint(self):
+    def create_checkpoint(self):
         """
         Retorna o MongoDBSaver do LangGraph
         """
         try:            
             client = MongoClient(self.mongodb_uri)
             
-            checkpointer = await MongoDBSaver(client)
+            checkpointer = MongoDBSaver(client)
             
             logger.info("MongoDBSaver criado com sucesso")
             return checkpointer

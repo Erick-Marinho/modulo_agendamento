@@ -55,3 +55,21 @@ class ILLMService(ABC):
             A pergunta gerada pelo LLM para ser enviada ao usuário.
         """
         pass
+    
+    @abstractmethod
+    def validate_scheduling_user_confirmation(self, user_message: str) -> str:
+        """
+        Analisa a resposta do usuário para determinar se ele confirma ou deseja alterar os dados do agendamento.
+
+        Args:
+            user_message: A mensagem do usuário em resposta à solicitação de confirmação.
+
+        Returns:
+            Uma string indicando a intenção do usuário:
+            - "CONFIRMED_SCHEDULING_DATA" se o usuário confirma os dados
+            - "ALTER_SCHEDULING_DATA" se o usuário deseja fazer alterações sem especificar quais
+            - "ALTER_SPECIFIC_SCHEDULING_DATA" se o usuário deseja fazer alterações especificando e passando novos valores
+            - "UNCLEAR" se a intenção não está clara
+        """
+        pass
+  

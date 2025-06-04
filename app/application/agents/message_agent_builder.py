@@ -1,6 +1,7 @@
 from langgraph.graph import StateGraph, END
 
 from app.application.agents.message_router import MessageRouter
+from app.application.agents.node_functions.validation_scheduling_data_node import validation_scheduling_data_node
 from app.application.agents.node_functions.fallback_node import fallback_node
 from app.application.agents.node_functions.scheduling_node import scheduling_node
 from app.application.agents.node_functions.orquestrator_node import orquestrator_node
@@ -21,9 +22,11 @@ class MessageAgentBuilder:
         """
         Inicializa e constroi o grafo do agente de mensagem
         """
+        self.routers = MessageRouter()
         self.graph = StateGraph(MessageAgentState)
-        self.route_orquestrator = MessageRouter().route_orquestrator
-        self.route_after_clarification = MessageRouter().decide_after_clarification
+        self.route_orquestrator = self.routers.route_orquestrator
+        self.route_after_clarification = self.routers.decide_after_clarification
+        self.route_validation_scheduling_data = self.routers.route_validation_scheduling_data
         self._build_graph()
 
         self._build_agent = self.graph.compile(checkpointer=checkpointer)
@@ -45,6 +48,7 @@ class MessageAgentBuilder:
         self.graph.add_node("scheduling_node", scheduling_node)
         self.graph.add_node("collection_node", collection_node)
         self.graph.add_node("clarification_node", clarification_node)
+        self.graph.add_node("validation_scheduling_data_node", validation_scheduling_data_node)
         self.graph.add_node("farewell_node", farewell_node)
         self.graph.add_node("fallback_node", fallback_node)
 
@@ -64,13 +68,26 @@ class MessageAgentBuilder:
         )
         self.graph.add_edge("scheduling_node", "collection_node")
         self.graph.add_edge("collection_node", "clarification_node")
+        
 
         self.graph.add_conditional_edges(
             "clarification_node",
             self.route_after_clarification,
             {
                 "END_AWAITING_USER": END,
-                "PROCEED_TO_VALIDATION": END,
+                "PROCEED_TO_VALIDATION": "validation_scheduling_data_node",
+                "DEFAULT_END": END,
+            }
+        )
+
+        self.graph.add_conditional_edges(
+            "validation_scheduling_data_node",
+            self.route_validation_scheduling_data,
+            {
+                "END_AWAITING_USER_VALIDATION": END,
+                "CONFIRMED_SCHEDULING_DATA": END, # proximo node
+                "ALTER_SCHEDULING_DATA": "collection_node",
+                "UNCLEAR": END,
                 "DEFAULT_END": END,
             }
         )
@@ -87,9 +104,9 @@ class MessageAgentBuilder:
         
         return self._build_agent
     
-async def get_message_agent():
+def get_message_agent():
     mongodb_provider = MongoDBSaverCheckpointer()
-    actual_mongo_checkpointer = await mongodb_provider.create_checkpoint()
+    actual_mongo_checkpointer = mongodb_provider.create_checkpoint()
 
     builder = MessageAgentBuilder(checkpointer=actual_mongo_checkpointer)
 

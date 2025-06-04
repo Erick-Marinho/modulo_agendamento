@@ -26,7 +26,6 @@ def clarification_node(state: MessageAgentState) -> MessageAgentState:
     Se a extração foi parcial, gerar uma pergunta para o usuário solicitando informações faltantes.
     Se a extração foi completa, não gerar pergunta.
     Se a extração foi completa, mas faltam informações essenciais, gerar uma pergunta para o usuário solicitando informações faltantes.
-    Se a extração foi completa, mas faltam informações essenciais, gerar uma pergunta para o usuário solicitando informações faltantes.
     """
     logger.info("--- EXECUTANDO NÓ DE ESCLARECIMENTO ---")
     
@@ -39,17 +38,7 @@ def clarification_node(state: MessageAgentState) -> MessageAgentState:
         current_messages.append(AIMessage(content=ai_response_text))
         return {**state, "messages": current_messages, "next_step": "END_AWAITING_USER"}
 
-    missing_fields: List[str] = []
-    if not details.professional_name:
-        missing_fields.append("nome do profissional")
-    if not details.date_preference:
-        missing_fields.append("data de preferência")
-    if not details.time_preference:
-        missing_fields.append("horário de preferência")
-    if not details.service_type:
-        missing_fields.append("tipo de serviço")
-    if not details.specialty:
-        missing_fields.append("especialidade")
+    missing_fields: List[str] = details.get_missing_fields()
 
     if missing_fields:
         logger.info(f"Informações de agendamento faltantes: {missing_fields}")
@@ -68,7 +57,9 @@ def clarification_node(state: MessageAgentState) -> MessageAgentState:
                 date_preference=details.date_preference,
                 time_preference=details.time_preference
             )
+
             logger.info(f"Pergunta de esclarecimento gerada: {ai_response_text}")
+
         except Exception as e:
             logger.error(f"Erro ao gerar pergunta de esclarecimento via LLM: {e}")
             ai_response_text = f"Para continuarmos com o agendamento do(a) {service_type_info}, preciso de mais alguns detalhes: {missing_fields_str}. Poderia me informar, por favor?"
