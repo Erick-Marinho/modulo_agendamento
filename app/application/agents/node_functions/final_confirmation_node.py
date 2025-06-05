@@ -46,7 +46,7 @@ def _classify_confirmation_response(message: str) -> str:
     try:
         llm_service = LLMFactory.create_llm_service("openai")
         classification = llm_service.classify_confirmation_response(message)
-        logger.info(f"🤖 LLM classificou '{message}' como: '{classification}'")
+        logger.info(f"LLM classificou '{message}' como: '{classification}'")
         return classification
         
     except Exception as e:
@@ -59,24 +59,39 @@ def _classify_confirmation_response_fallback(message: str) -> str:
     """
     message_lower = message.lower().strip()
     
-    if message_lower in ["sim", "ok", "correto", "certo", "perfeito", "isso mesmo"]:
+    # Confirmações explícitas
+    if any(word in message_lower for word in ["sim", "ok", "correto", "certo", "perfeito", "isso mesmo", "confirmo"]):
         return "confirmed"
     
-    if message_lower in ["não", "nao", "quero mudar", "quero alterar", "preciso alterar"]:
+    # Negações simples - usuário quer alterar mas não especificou o que
+    if any(word in message_lower for word in ["não", "nao", "quero mudar", "quero alterar", "preciso alterar", "mudar"]) and not _has_specific_data(message_lower):
         return "simple_rejection"
     
-    has_numbers = any(char.isdigit() for char in message_lower)
-    has_specific_data = any(word in message_lower for word in [
-        "para", "dr", "dra", "manhã", "tarde", "noite", 
-        "segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo",
-        "cardiologia", "pediatria", "ortopedia", "h", ":"
-    ])
-    
-    if has_numbers or has_specific_data:
+    # Possui dados específicos para correção
+    if _has_specific_data(message_lower):
         return "correction_with_data"
     
     return "unclear"
 
+def _has_specific_data(message_lower: str) -> bool:
+    """
+    Verifica se a mensagem contém dados específicos para correção.
+    """
+    # Verifica números (horários, datas)
+    if any(char.isdigit() for char in message_lower):
+        return True
+    
+    # Verifica palavras-chave específicas
+    specific_keywords = [
+        "dr", "dra", "doutor", "doutora",
+        "manhã", "tarde", "noite", 
+        "segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo",
+        "cardiologia", "pediatria", "ortopedia", "neurologista", "psiquiatra",
+        "consulta", "retorno", "exame",
+        "para", "com", "às", "dia", "hora"
+    ]
+    
+    return any(keyword in message_lower for keyword in specific_keywords)
 
 def _handle_confirmed_appointment(state: MessageAgentState) -> MessageAgentState:
     """
@@ -137,7 +152,7 @@ def _handle_simple_rejection(state: MessageAgentState) -> MessageAgentState:
         correction_message = llm_service.generate_correction_request_message()
     except Exception as e:
         logger.error(f"Erro ao gerar mensagem de correção via IA: {e}")
-        correction_message = "Me informe o que gostaria de alterar."
+        correction_message = "Entendi que você quer alterar algo. Por favor, me informe especificamente o que gostaria de mudar (data, horário, profissional, etc.)."
     
     updated_messages = current_messages + [AIMessage(content=correction_message)]
     
@@ -151,9 +166,10 @@ def _handle_correction_with_data(state: MessageAgentState) -> MessageAgentState:
     """
     Usuário já forneceu dados para correção - processa diretamente.
     """
-    logger.info("Usuário forneceu dados de correção diretamente - processando")
+    logger.info("Usuário forneceu dados de correção diretamente - processando via scheduling_info")
     
     return {
         **state,
-        "next_step": "scheduling_info"
+        "next_step": "scheduling_info",
+        "conversation_context": "correcting_data"
     }

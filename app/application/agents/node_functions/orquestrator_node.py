@@ -21,7 +21,7 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
     
     if current_next_step == "awaiting_correction":
         logger.info("Estado indica que estamos aguardando correção - direcionando para scheduling_info")
-        return {**state, "next_step": "scheduling_info"}
+        return {**state, "next_step": "scheduling_info",  "conversation_context": "correcting_data"}
 
     # Verifica se estamos em um contexto específico
     conversation_context = state.get("conversation_context")

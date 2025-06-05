@@ -11,7 +11,7 @@ from app.application.agents.node_functions.farewell_node import farewell_node
 from app.application.agents.node_functions.collection_node import collection_node
 from app.application.agents.node_functions.clarification_node import clarification_node
 from app.infrastructure.persistence.mongodb_saver_checkpointer import MongoDBSaverCheckpointer
-from app.application.agents.node_functions.sheduling_info_node import scheduling_info_node
+from app.application.agents.node_functions.scheduling_info_node import scheduling_info_node
 from app.application.agents.node_functions.check_completeness_node import check_completeness_node
 from app.application.agents.node_functions.other_node import other_node
 from app.application.agents.node_functions.validate_and_confirm_node import validate_and_confirm_node

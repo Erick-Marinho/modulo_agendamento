@@ -1,5 +1,5 @@
 import logging
-from app.application.agents.state.message_agent_state import MessageAgentState
+from app.application.agents.state.message_agent_state import MessageAgentState, SchedulingDetails
 from app.infrastructure.services.llm.llm_factory import LLMFactory
 from langchain_core.messages import HumanMessage
 from typing import Optional
@@ -111,12 +111,20 @@ def _merge_scheduling_details(existing, new):
     Mescla detalhes de agendamento, priorizando informações mais recentes.
     """
     if not existing:
+        logger.info("Nenhum detalhe existente, retornando dados novos")
         return new
     
     if not new:
+        logger.info("Nenhum detalhe novo, retornando dados existentes")
         return existing
     
-    merged = existing.model_copy() if hasattr(existing, 'model_copy') else existing
+    merged = SchedulingDetails(
+        professional_name=existing.professional_name,
+        specialty=existing.specialty,
+        date_preference=existing.date_preference,
+        time_preference=existing.time_preference,
+        service_type=existing.service_type
+    )
     
     if new.professional_name:
         merged.professional_name = new.professional_name
