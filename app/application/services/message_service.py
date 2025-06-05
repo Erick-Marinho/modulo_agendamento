@@ -1,7 +1,8 @@
 import logging
+import traceback
 
 from fastapi import Depends
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, AIMessage
 from app.application.agents.message_agent_builder import MessageAgentBuilder
 from app.application.agents.state.message_agent_state import MessageAgentState
 from app.application.dto.message_request_dto import MessageRequestPayload
@@ -40,41 +41,65 @@ class MessageService:
         Returns:
             MessageResponsePayload
         """
-        logger.info(f"Processando mensagem: {request_payload}")
-
-        thread_id = request_payload.phone_number
-        config = {"configurable": {"thread_id": thread_id}}
-
-        initial_state: MessageAgentState = {
-            "message": request_payload.message,
-            "phone_number": request_payload.phone_number,
-            "message_id": request_payload.message_id,
-            "messages": [HumanMessage(content=request_payload.message)]
-        }
-
         try:
-            final_state: MessageAgentState = self.message_agent.invoke(initial_state, config=config)
+            logger.info(f"=== INICIANDO PROCESSAMENTO ===")
+            logger.info(f"Payload recebido: {request_payload}")
 
-            if final_state and final_state.get("messages"):
-                logger.info(f"Histórico de mensagens no estado final para thread_id {thread_id}:")
+            thread_id = request_payload.phone_number
+            config = {"configurable": {"thread_id": thread_id}}
 
-                for i, msg in enumerate(final_state["messages"]):
-                    logger.info(f"  Msg {i+1}: Type='{msg.type}', Content='{msg.content}'")
+            initial_state: MessageAgentState = {
+                "message": request_payload.message,
+                "phone_number": request_payload.phone_number,
+                "message_id": request_payload.message_id,
+                "messages": [HumanMessage(content=request_payload.message)],
+                "next_step": "",
+                "conversation_context": None,
+                "extracted_scheduling_details": None,
+                "missing_fields": None,
+                "awaiting_user_input": None
+            }
+            
+            logger.info(f"Estado inicial criado com {len(initial_state['messages'])} mensagens")
 
-            else:
-                logger.warning(f"Nenhuma mensagem no estado final para thread_id {thread_id}.")
+            logger.info(f"=== EXECUTANDO AGENTE ===")
+            final_state: MessageAgentState = await self.message_agent.ainvoke(initial_state, config=config)
+            logger.info(f"=== AGENTE EXECUTADO COM SUCESSO ===")
 
-            # "Resposta padrão se não houver mensagens."
-            # last_ai_message_content = "Resposta padrão se não houver mensagens."
-            # if final_state.get("messages"):
-            #     last_ai_message_content = final_state["messages"][-1].content # type: ignore
+            # Validar estado final
+            messages = final_state.get("messages", [])
+            if not messages:
+                logger.error(f"Estado final sem mensagens para thread_id {thread_id}")
+                return MessageResponsePayload(
+                    message="Desculpe, houve um problema interno. Tente novamente.",
+                    phone_number=request_payload.phone_number,
+                    message_id=request_payload.message_id,
+                )
+
+            logger.info(f"=== PROCESSANDO {len(messages)} MENSAGENS ===")
+            for i, msg in enumerate(messages):
+                logger.info(f"Msg {i+1}: {getattr(msg, 'type', 'unknown')} - {getattr(msg, 'content', 'sem conteúdo')[:50]}...")
+
+            # Extrair resposta
+            last_message = messages[-1]
+            response_content = getattr(last_message, 'content', None)
+            
+            if not response_content:
+                response_content = "Desculpe, houve um problema ao processar sua mensagem. Como posso ajudar?"
+
+            logger.info(f"=== RESPOSTA EXTRAÍDA: {response_content[:100]}... ===")
 
             return MessageResponsePayload(
-                message=final_state.get("messages")[-1].content,
+                message=response_content,
                 phone_number=final_state.get("phone_number", request_payload.phone_number),
                 message_id=final_state.get("message_id", request_payload.message_id),
             )
-            
+
         except Exception as e:
-            logger.error(f"Erro ao processar mensagem para thread_id {thread_id}: {e}")
+            logger.error(f"=== ERRO CRÍTICO ===")
+            logger.error(f"Erro: {str(e)}")
+            logger.error(f"Tipo: {type(e).__name__}")
+            logger.error(f"Traceback completo:")
+            logger.error(traceback.format_exc())
+            logger.error(f"=== FIM ERRO ===")
             raise
