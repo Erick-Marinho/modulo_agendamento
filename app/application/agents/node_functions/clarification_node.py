@@ -45,7 +45,7 @@ def clarification_node(state: MessageAgentState) -> MessageAgentState:
     if not details.date_preference:
         missing_fields.append("data de preferência")
     if not details.time_preference:
-        missing_fields.append("horário de preferência")
+        missing_fields.append("turno de preferência (manhã ou tarde)")
     if not details.service_type:
         missing_fields.append("tipo de serviço")
     if not details.specialty:
