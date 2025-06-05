@@ -1,84 +1,89 @@
 import logging
 
 from app.application.agents.state.message_agent_state import MessageAgentState
-from app.infrastructure.services.llm.llm_factory import LLMFactory
-from langchain_core.messages import HumanMessage, AIMessage
-
+from app.infrastructure.services.llm.llm_factory import LLMFactory 
+from langchain_core.messages import HumanMessage
 logger = logging.getLogger(__name__)
 
+AGENT_TOOL_CALLER_NODE_NAME = "agent_tool_caller" 
 
 def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
     """
     Nó orquestrador que classifica a intenção do usuário e define o próximo passo.
     """
-
     logger.info(f"--- Executando nó orquestrador ---")
 
     current_next_step = state.get("next_step", "")
     if current_next_step == "awaiting_final_confirmation":
         logger.info("Estado indica que estamos aguardando confirmação final")
         return {**state, "next_step": "final_confirmation"}
-    
+
     if current_next_step == "awaiting_correction":
         logger.info("Estado indica que estamos aguardando correção - direcionando para scheduling_info")
         return {**state, "next_step": "scheduling_info",  "conversation_context": "correcting_data"}
 
-    # Verifica se estamos em um contexto específico
     conversation_context = state.get("conversation_context")
-
     if conversation_context == "awaiting_confirmation":
-        logger.info("Usuário está respondendo a uma confirmação")
+        logger.info("Usuário está respondendo a uma confirmação, direcionando para final_confirmation")
         return {**state, "next_step": "final_confirmation"}
 
-    # Pega a última mensagem do usuário
     messages = state.get("messages", [])
-    
-    # Verifica se a última mensagem do assistente estava pedindo confirmação
-    if len(messages) >= 2:
-        last_ai_message = None
-        for msg in reversed(messages[:-1]):  # Exclui a última (que deve ser do usuário)
-            if isinstance(msg, AIMessage):
-                last_ai_message = msg.content.lower()
-                break
-        
-        if last_ai_message and ("alterar" in last_ai_message or "corrigir" in last_ai_message):
-            logger.info("Detectado contexto de confirmação na conversa")
-            return {**state, "next_step": "sheduling_info", "conversation_context": "sheduling"}
-    
-    # Encontra a última mensagem humana
-    last_human_message = None
-
+    last_human_message_content = None
     for msg in reversed(messages):
         if isinstance(msg, HumanMessage):
-            last_human_message = msg.content
+            last_human_message_content = msg.content
             break
 
-    if not last_human_message:
-        logger.warning("Nenhuma mensagem humana encontrada no estado.")
-        return {**state, "next_step": "unclear"}
-    
-    logger.info(f"Classificando mensagem: {last_human_message}")
+    if not last_human_message_content:
+        logger.warning("Nenhuma mensagem humana encontrada no estado para o orquestrador.")
+        if state.get("message"):
+             last_human_message_content = state.get("message")
+        else:
+             logger.warning("Orquestrador: Nenhuma mensagem humana para classificar.")
+             return {**state, "next_step": "unclear", "conversation_context": "system_error"}
+
+
+    logger.info(f"Orquestrador classificando mensagem: '{last_human_message_content}'")
 
     try:
         llm_service = LLMFactory.create_llm_service("openai")
-        classification = llm_service.classify_message(last_human_message)
-        
+        classification = llm_service.classify_message(last_human_message_content)
+
         classification = classification.strip().lower()
-        
-        logger.info(f"Classificação retornada pelo LLM: '{classification}'")
-        
-        valid_classifications = ["scheduling", "scheduling_info", "greeting", "farewell", "other", "unclear"]
-        
+        logger.info(f"Classificação retornada pelo LLM para orquestrador: '{classification}'")
+
+        valid_classifications = [
+            "scheduling", "scheduling_info", 
+            "greeting", "farewell", 
+            "api_query",
+            "other", "unclear"
+        ]
+
         if classification not in valid_classifications:
-            logger.warning(f"Classificação inválida: '{classification}'. Usando 'unclear' como fallback.")
+            logger.warning(f"Classificação inválida do LLM: '{classification}'. Usando 'unclear' como fallback.")
             classification = "unclear"
-        
-        context = None
+
+        next_step_map = {
+            "scheduling": "scheduling",
+            "scheduling_info": "scheduling_info",
+            "greeting": "greeting",
+            "farewell": "farewell",
+            "api_query": AGENT_TOOL_CALLER_NODE_NAME, 
+            "other": "other",
+            "unclear": "fallback_node"
+        }
+
+        next_node = next_step_map.get(classification, "fallback_node") 
+
+        new_conversation_context = classification
         if classification in ["scheduling", "scheduling_info"]:
-            context = "scheduling"
-        
-        return {**state, "next_step": classification, "conversation_context": context}
-        
+            new_conversation_context = "scheduling_flow"
+        elif classification == "api_query":
+            new_conversation_context = "api_interaction"
+
+        logger.info(f"Orquestrador definiu next_step para: '{next_node}' com contexto: '{new_conversation_context}'")
+        return {**state, "next_step": next_node, "conversation_context": new_conversation_context}
+
     except Exception as e:
-        logger.error(f"Erro ao classificar mensagem: {e}")
-        return {**state, "next_step": "unclear"}
+        logger.error(f"Erro ao classificar mensagem no orquestrador: {e}", exc_info=True)
+        return {**state, "next_step": "fallback_node", "conversation_context": "system_error"}
