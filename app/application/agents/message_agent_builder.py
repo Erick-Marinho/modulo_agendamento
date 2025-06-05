@@ -134,7 +134,8 @@ class MessageAgentBuilder:
             "scheduling_info_node",
             lambda state: state.get("next_step", "clarification_node"),
             {
-                "check_completeness_node": "check_completeness_node",
+                "check_completeness": "check_completeness_node",
+                "clarification": "clarification_node",
                 "clarification_node": "clarification_node"
             }
         )

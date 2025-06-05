@@ -2,6 +2,7 @@ from app.application.agents.state.message_agent_state import MessageAgentState
 from app.infrastructure.services.llm.llm_factory import LLMFactory
 from langchain_core.messages import AIMessage, HumanMessage
 import logging
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -141,20 +142,35 @@ def _handle_unclear_response(state: MessageAgentState) -> MessageAgentState:
 
 def _handle_simple_rejection(state: MessageAgentState) -> MessageAgentState:
     """
-    Usuário quer alterar mas não especificou o que.
+    Usuário quer alterar mas não especificou dados completos da alteração.
+    Pergunta de forma direcionada se o campo for identificado, senão genericamente.
     """
-    logger.info("Usuário quer alterar mas não especificou dados")
+    logger.info("Usuário quer alterar. Verificando se especificou o campo.")
     
     current_messages = state.get("messages", [])
+    last_user_message_content = _get_last_user_message(current_messages)
     
-    try:
-        llm_service = LLMFactory.create_llm_service("openai")
-        correction_message = llm_service.generate_correction_request_message()
-    except Exception as e:
-        logger.error(f"Erro ao gerar mensagem de correção via IA: {e}")
-        correction_message = "Entendi que você quer alterar algo. Por favor, me informe especificamente o que gostaria de mudar (data, horário, profissional, etc.)."
+    correction_message_text = ""
+    target_field = _identify_target_field_from_rejection(last_user_message_content)
+
+    if target_field == "horário":
+        correction_message_text = "Entendi que você gostaria de alterar o horário. Qual o novo horário de sua preferência (manhã ou tarde, ou o horário específico)?"
+    elif target_field == "data":
+        correction_message_text = "Certo. Para qual nova data você gostaria de agendar?"
+    elif target_field == "profissional":
+        correction_message_text = "Ok. Qual o nome do novo profissional que você gostaria de consultar?"
+    elif target_field == "especialidade":
+        correction_message_text = "Entendido. Qual a nova especialidade que você procura?"
+    else:
+        logger.info(f"Campo específico para correção não identificado em '{last_user_message_content}'. Usando pergunta genérica.")
+        try:
+            llm_service = LLMFactory.create_llm_service("openai")
+            correction_message_text = llm_service.generate_correction_request_message() 
+        except Exception as e:
+            logger.error(f"Erro ao gerar mensagem de correção genérica via IA: {e}")
+            correction_message_text = "Entendi que você quer alterar algo. Por favor, me informe especificamente o que gostaria de mudar (por exemplo, data, horário, profissional ou especialidade)."
     
-    updated_messages = current_messages + [AIMessage(content=correction_message)]
+    updated_messages = current_messages + [AIMessage(content=correction_message_text)]
     
     return {
         **state,
@@ -173,3 +189,32 @@ def _handle_correction_with_data(state: MessageAgentState) -> MessageAgentState:
         "next_step": "scheduling_info",
         "conversation_context": "correcting_data"
     }
+
+def _identify_target_field_from_rejection(message: str) -> Optional[str]:
+    """
+    Identifica o campo alvo que o usuário deseja corrigir a partir de sua mensagem.
+    Retorna: "horário", "data", "profissional", "especialidade" ou None.
+    """
+    if not message:
+        return None
+    message_lower = message.lower().strip()
+    
+    # Palavras-chave para cada campo
+    horario_keywords = ["horario", "hora", "horas"]
+    data_keywords = ["data", "dia"]
+    profissional_keywords = ["médico", "medico", "profissional", "doutor", "doutora", "dr", "dra"]
+    especialidade_keywords = ["especialidade"]
+
+    if any(keyword in message_lower for keyword in horario_keywords):
+        return "horário"
+    if any(keyword in message_lower for keyword in data_keywords):
+        return "data"
+    if any(keyword in message_lower for keyword in profissional_keywords):
+        # Cuidado para não confundir com o nome do profissional já sendo fornecido
+        # Esta função é para quando o usuário diz "quero mudar O profissional"
+        if len(message_lower.split()) < 4: # Heurística simples: "o medico", "o profissional"
+             return "profissional"
+    if any(keyword in message_lower for keyword in especialidade_keywords):
+        return "especialidade"
+    
+    return None
