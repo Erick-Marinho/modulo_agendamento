@@ -56,15 +56,16 @@ def _update_existing_details(state: MessageAgentState) -> MessageAgentState:
     try:
         llm_service = LLMFactory.create_llm_service("openai")
         
-        last_user_message = _get_last_user_message(state.get("messages", []))
-        
-        if not last_user_message:
-            logger.warning("Nenhuma mensagem do usuário encontrada para atualização")
+        all_messages = state.get("messages", [])
+        if not all_messages:
+            logger.warning("Nenhuma mensagem encontrada para atualização")
             return {**state, "next_step": "clarification"}
         
-        logger.info(f"Atualizando detalhes com nova mensagem: '{last_user_message}'")
+        conversation_history = _format_conversation_history(all_messages, max_messages=3) 
         
-        new_details = llm_service.extract_scheduling_details(last_user_message)
+        logger.info(f"Atualizando detalhes com o histórico recente: '{conversation_history}'")
+        
+        new_details = llm_service.extract_scheduling_details(conversation_history)
         
         if new_details:
             existing_details = state.get("extracted_scheduling_details")
@@ -74,8 +75,8 @@ def _update_existing_details(state: MessageAgentState) -> MessageAgentState:
             
             return {**state, "extracted_scheduling_details": updated_details, "next_step": "check_completeness"}
         else:
-            logger.warning("Nenhum detalhe novo extraído da mensagem")
-            return {**state, "next_step": "clarification"}
+            logger.warning("Nenhum detalhe novo extraído da mensagem. Verifique o prompt de extração e o contexto.")
+            return {**state, "next_step": "check_completeness"}
             
     except Exception as e:
         logger.error(f"Erro ao atualizar detalhes: {e}")

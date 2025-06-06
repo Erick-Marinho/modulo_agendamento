@@ -198,23 +198,17 @@ def _identify_target_field_from_rejection(message: str) -> Optional[str]:
     if not message:
         return None
     message_lower = message.lower().strip()
-    
-    # Palavras-chave para cada campo
-    horario_keywords = ["horario", "hora", "horas"]
-    data_keywords = ["data", "dia"]
-    profissional_keywords = ["médico", "medico", "profissional", "doutor", "doutora", "dr", "dra"]
-    especialidade_keywords = ["especialidade"]
 
-    if any(keyword in message_lower for keyword in horario_keywords):
-        return "horário"
-    if any(keyword in message_lower for keyword in data_keywords):
-        return "data"
-    if any(keyword in message_lower for keyword in profissional_keywords):
-        # Cuidado para não confundir com o nome do profissional já sendo fornecido
-        # Esta função é para quando o usuário diz "quero mudar O profissional"
-        if len(message_lower.split()) < 4: # Heurística simples: "o medico", "o profissional"
-             return "profissional"
-    if any(keyword in message_lower for keyword in especialidade_keywords):
-        return "especialidade"
-    
+    # Dicionário de palavras-chave para cada campo
+    keywords_map = {
+        "horário": ["horario", "hora", "horas", "turno"],
+        "data": ["data", "dia"],
+        "profissional": ["médico", "medico", "profissional", "doutor", "doutora", "dr", "dra"],
+        "especialidade": ["especialidade"],
+    }
+
+    for field, field_keywords in keywords_map.items():
+        if any(keyword in message_lower for keyword in field_keywords):
+            return field  # Retorna o nome do campo se encontrar uma palavra-chave
+            
     return None

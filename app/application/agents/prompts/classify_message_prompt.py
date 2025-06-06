@@ -28,6 +28,7 @@ CLASSIFY_MESSAGE_TEMPLATE = ChatPromptTemplate.from_template(
     "Preciso agendar com cardiologista" → scheduling
     "Dr. Silva" (resposta a pergunta sobre profissional) → scheduling_info
     "Amanhã às 14h" (resposta sobre horário) → scheduling_info
+    "amanha a tarde" (resposta sobre data e turno) → scheduling_info
     "Pediatria" (resposta sobre especialidade) → scheduling_info
     "Quais especialidades vocês atendem?" → api_query
     "Tem cardiologista?" → api_query
