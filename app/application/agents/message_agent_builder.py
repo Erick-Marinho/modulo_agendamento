@@ -17,6 +17,8 @@ from app.application.agents.node_functions.check_completeness_node import check_
 from app.application.agents.node_functions.other_node import other_node
 from app.application.agents.node_functions.validate_and_confirm_node import validate_and_confirm_node
 from app.application.agents.node_functions.final_confirmation_node import final_confirmation_node
+from app.application.agents.node_functions.check_availability_node import check_availability_node
+from app.application.agents.node_functions.book_appintment_node import book_appointment_node
 
 from app.infrastructure.clients.apphealth_api_client import AppHealthAPIClient
 from app.infrastructure.repositories.apphealth_api_medical_repository import AppHealthAPIMedicalRepository
@@ -78,7 +80,9 @@ class MessageAgentBuilder:
         self.graph.add_node("final_confirmation_node", final_confirmation_node)
         self.graph.add_node("other_node", other_node)
         self.graph.add_node("farewell_node", farewell_node)
-        self.graph.add_node("fallback_node", fallback_node) 
+        self.graph.add_node("fallback_node", fallback_node)
+        self.graph.add_node("check_availability_node", check_availability_node)
+        self.graph.add_node("book_appointment_node", book_appointment_node) 
 
         # Novos nós para Tools
         tool_calling_agent_func = create_tool_calling_agent_node(
@@ -111,6 +115,7 @@ class MessageAgentBuilder:
                 "other_node": "other_node",
                 AGENT_TOOL_CALLER_NODE_NAME: AGENT_TOOL_CALLER_NODE_NAME, 
                 "fallback_node": "fallback_node",
+                "book_appointment_node": "book_appointment_node",
             }
         )
 
@@ -164,12 +169,17 @@ class MessageAgentBuilder:
             "final_confirmation_node",
             lambda state: state.get("next_step", "completed"), 
             {
-                "appointment_confirmed": END,
+                # ALTERAÇÃO AQUI: Em vez de END, vai para a verificação de agenda!
+                "appointment_confirmed": "check_availability_node", 
                 "awaiting_correction": END,
                 "awaiting_final_confirmation": END,
                 "completed": END 
             }
         )
+
+        self.graph.add_edge("check_availability_node", END)
+        self.graph.add_edge("book_appointment_node", END)
+
 
         self.graph.add_conditional_edges(
             "clarification_node",
@@ -187,6 +197,7 @@ class MessageAgentBuilder:
         self.graph.add_edge("other_node", END)
         self.graph.add_edge("fallback_node", END)
         self.graph.add_edge("farewell_node", END)
+
 
     def build_agent(self):
         """

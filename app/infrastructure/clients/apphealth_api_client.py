@@ -1,6 +1,6 @@
 import httpx
 import logging
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Dict
 from app.infrastructure.config.config import settings
 from app.domain.entities.medical_specialty import ApiMedicalSpecialty
 from app.domain.entities.medical_professional import ApiMedicalProfessional
@@ -56,6 +56,51 @@ class AppHealthAPIClient:
         except Exception as e:
             logger.error(f"Failed to fetch or parse professionals: {e}")
             return []
+        
+    async def get_available_dates_from_api(self, professional_id: int, month: int, year: int) -> List[Dict[str, Any]]:
+        """Busca as datas disponíveis para um profissional em um mês/ano específico."""
+        try:
+            endpoint = f"/agenda/profissionais/{professional_id}/datas"
+            params = {"mes": str(month), "ano": str(year)}
+            logger.info(f"Fetching available dates from {endpoint} with params {params}")
+            data = await self._request("GET", endpoint, params=params)
+            logger.info(f"Successfully fetched {len(data)} available dates for professional {professional_id}.")
+            return data
+        except Exception as e:
+            logger.error(f"Failed to fetch or parse available dates for professional {professional_id}: {e}")
+            return []
+
+    async def get_available_times_from_api(self, professional_id: int, date: str) -> List[Dict[str, Any]]:
+        """Busca os horários disponíveis para um profissional em uma data específica."""
+        try:
+            endpoint = f"/agenda/profissionais/{professional_id}/horarios"
+            params = {"data": date}
+            logger.info(f"Fetching available times from {endpoint} with params {params}")
+            data = await self._request("GET", endpoint, params=params)
+            logger.info(f"Successfully fetched {len(data)} available time slots for professional {professional_id} on {date}.")
+            return data
+        except Exception as e:
+            logger.error(f"Failed to fetch or parse available times for professional {professional_id} on {date}: {e}")
+            return []
+
+    async def book_appointment_on_api(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Realiza o agendamento (POST) na API."""
+        try:
+            endpoint = "/agendamentos"
+            logger.info(f"Booking appointment with payload: {payload}")
+            url = f"{self.base_url}{endpoint}"
+            async with httpx.AsyncClient() as client:
+                response = await client.post(url, headers=self.headers, json=payload, timeout=10.0)
+                response.raise_for_status()
+                booked_data = response.json()
+                logger.info(f"Successfully booked appointment. Response: {booked_data}")
+                return booked_data
+        except httpx.HTTPStatusError as e:
+            logger.error(f"HTTP error occurred while booking: {e.response.status_code} - {e.response.text}")
+            raise
+        except Exception as e:
+            logger.error(f"Failed to book appointment: {e}")
+            raise
 
 if __name__ == "__main__":
     import asyncio

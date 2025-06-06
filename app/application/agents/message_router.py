@@ -25,6 +25,7 @@ class MessageRouter:
             "other": "other_node",
             AGENT_TOOL_CALLER_NODE_NAME.lower(): AGENT_TOOL_CALLER_NODE_NAME, 
             "fallback_node": "fallback_node",
+            "book_appointment_node": "book_appointment_node",
         }
 
         destination_node = route_map.get(next_step)
