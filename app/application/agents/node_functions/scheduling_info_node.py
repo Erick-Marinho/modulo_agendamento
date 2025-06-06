@@ -72,8 +72,17 @@ def _update_existing_details(state: MessageAgentState) -> MessageAgentState:
             updated_details = _merge_scheduling_details(existing_details, new_details)
             
             logger.info(f"Detalhes atualizados: {updated_details}")
-            
-            return {**state, "extracted_scheduling_details": updated_details, "next_step": "check_completeness"}
+
+            # --- NOVA LÓGICA DE DIRECIONAMENTO ---
+            # Se estávamos corrigindo uma data, o próximo passo é checar a disponibilidade novamente.
+            if state.get("conversation_context") == "awaiting_new_date_selection":
+                 next_node = "check_availability_node"
+                 logger.info("Redirecionando de volta para a verificação de disponibilidade.")
+            else:
+                 # Comportamento padrão: verificar se os dados estão completos.
+                 next_node = "check_completeness"
+
+            return {**state, "extracted_scheduling_details": updated_details, "next_step": next_node}
         else:
             logger.warning("Nenhum detalhe novo extraído da mensagem. Verifique o prompt de extração e o contexto.")
             return {**state, "next_step": "check_completeness"}
@@ -98,14 +107,6 @@ def _format_conversation_history(messages, max_messages: int = 5) -> str:
 
     return "\n".join(formatted_history)
 
-def _get_last_user_message(messages) -> Optional[str]:
-    """
-    Obtém a última mensagem do usuário.
-    """
-    for msg in reversed(messages):
-        if isinstance(msg, HumanMessage):
-            return msg.content
-    return None
 
 def _merge_scheduling_details(existing, new):
     """

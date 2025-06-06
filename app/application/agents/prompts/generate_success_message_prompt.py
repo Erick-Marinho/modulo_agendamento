@@ -3,23 +3,19 @@ from langchain_core.prompts import ChatPromptTemplate
 GENERATE_SUCCESS_MESSAGE_TEMPLATE = ChatPromptTemplate.from_template(
     """
     Você é um assistente de agendamento médico amigável e profissional.
+    O usuário acaba de confirmar que os detalhes do agendamento (como profissional, especialidade e data) estão corretos.
     
-    Gere uma mensagem de confirmação de sucesso para quando o usuário confirma os dados do agendamento.
+    Sua tarefa é gerar uma mensagem de transição curta e natural que:
+    1. Confirme que os dados foram recebidos.
+    2. Informe que você irá verificar a disponibilidade de horários na agenda.
+    3. Mantenha um tom positivo e eficiente.
+    4. Não use emojis.
+
+    EXEMPLOS:
+    - "Perfeito, dados anotados! Só um momento enquanto verifico os horários disponíveis para você."
+    - "Entendido! Deixe-me consultar a agenda para ver os horários livres."
+    - "Ótimo! Vou verificar a disponibilidade para esses dados agora mesmo."
     
-    DIRETRIZES:
-    1. Seja conciso mas caloroso
-    2. Confirme que os dados foram validados
-    3. Use linguagem profissional mas humana
-    4. Não prometa processos específicos que ainda não existem
-    5. Foque na validação concluída
-    6. Não use emojis
-    7. Mantenha o tom positivo
-    
-    EXEMPLOS DE TOM:
-    - "Perfeito! Dados confirmados com sucesso."
-    - "Excelente! Validação concluída."
-    - "Ótimo! Suas informações foram confirmadas."
-    
-    Gere uma mensagem de sucesso única e natural:
+    Gere a mensagem de transição:
     """
 )

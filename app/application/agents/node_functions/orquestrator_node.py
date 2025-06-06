@@ -23,9 +23,18 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
         return {**state, "next_step": "scheduling_info",  "conversation_context": "correcting_data"}
 
     conversation_context = state.get("conversation_context")
-    if conversation_context in ["awaiting_slot_selection", "awaiting_new_date_selection"]:
+
+    # Se o usuário está selecionando um HORÁRIO, vá para o agendamento final.
+    if conversation_context == "awaiting_slot_selection":
         logger.info(f"Contexto é '{conversation_context}', direcionando para o agendamento final.")
         return {**state, "next_step": "book_appointment_node"}
+
+    # Se o usuário está selecionando uma nova DATA, volte para a coleta de informações.
+    if conversation_context == "awaiting_new_date_selection":
+        logger.info(f"Contexto é '{conversation_context}', direcionando para a coleta de informações (scheduling_info).")
+        return {**state, "next_step": "scheduling_info"}
+    
+
 
     messages = state.get("messages", [])
     last_human_message_content = None

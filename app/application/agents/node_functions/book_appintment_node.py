@@ -103,7 +103,7 @@ async def book_appointment_node(state: MessageAgentState) -> MessageAgentState:
         await api_client.book_appointment_on_api(payload)
         
         data_formatada = datetime.strptime(data_agendamento, "%Y-%m-%d").strftime("%d/%m/%Y")
-        response_text = f"Pronto! Agendamento confirmado com sucesso para o dia {data_formatada} às {chosen_time} com Dr(a). {details.professional_name}. Obrigado por utilizar nossos serviços!"
+        response_text = f"Pronto! Agendamento confirmado com sucesso para o dia {data_formatada} às {chosen_time} com {details.professional_name}. Obrigado por utilizar nossos serviços!"
         
     except Exception as e:
         logger.error(f"Erro crítico no nó de agendamento: {e}", exc_info=True)

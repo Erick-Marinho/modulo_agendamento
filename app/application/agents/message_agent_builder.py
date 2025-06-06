@@ -143,7 +143,8 @@ class MessageAgentBuilder:
             {
                 "check_completeness": "check_completeness_node",
                 "clarification": "clarification_node",
-                "clarification_node": "clarification_node"
+                "clarification_node": "clarification_node",
+                "check_availability_node": "check_availability_node"
             }
         )
 
