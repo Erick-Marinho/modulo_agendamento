@@ -1,48 +1,41 @@
 import logging
 import traceback
 
-from fastapi import Depends
-from langchain_core.messages import HumanMessage, AIMessage
-from app.application.agents.message_agent_builder import MessageAgentBuilder
-from app.application.agents.state.message_agent_state import MessageAgentState
+from langchain_core.messages import HumanMessage
 from app.application.dto.message_request_dto import MessageRequestPayload
-from app.application.dto.message_response_dto import MessageResponsePayload
-from app.infrastructure.persistence.ISaveCheckpoint import SaveCheckpointInterface
-from app.infrastructure.persistence.mongodb_saver_checkpointer import MongoDBSaverCheckpointer
+from app.application.agents.state.message_agent_state import MessageAgentState
+from app.infrastructure.clients.n8n_client import N8NClient # Importar o novo cliente
 
 logger = logging.getLogger(__name__)
 
 class MessageService:
     """
-    Serviço para processar a mensagem recebida
+    Serviço para processar a mensagem recebida e enviar a resposta.
     """
 
     def __init__(self, agent):
         """
         Inicializa o serviço de mensagem
-
-        Args:
-            checkpointer: SaveCheckpointInterface (MongoDBSaver oficial por padrão)
         """
         if agent is None:
-            logger.error("Agente não inicializado - MessageService não pode ser inicializado")
             raise ValueError("O agente não pode ser None para o MessageService")
         
         self.message_agent = agent
-        logger.info("MessageService inicializado com o agente de mensagem injetado")
+        self.n8n_client = N8NClient() # Instanciar o cliente N8N
+        logger.info("MessageService inicializado com o agente e o cliente N8N.")
 
-    async def process_message(self, request_payload: MessageRequestPayload) -> MessageResponsePayload:
+    async def process_message(self, request_payload: MessageRequestPayload) -> dict:
         """
-        Processa a mensagem recebida
+        Processa a mensagem recebida, executa o agente e envia a resposta para o N8N.
 
         Args:
-            message: MessageRequestPayload
+            request_payload: MessageRequestPayload
 
         Returns:
-            MessageResponsePayload
+            Um dicionário com o status do envio para o N8N.
         """
         try:
-            logger.info(f"=== INICIANDO PROCESSAMENTO ===")
+            logger.info(f"=== INICIANDO PROCESSAMENTO DA MENSAGEM ===")
             logger.info(f"Payload recebido: {request_payload}")
 
             thread_id = request_payload.phone_number
@@ -60,46 +53,46 @@ class MessageService:
                 "awaiting_user_input": None
             }
             
-            logger.info(f"Estado inicial criado com {len(initial_state['messages'])} mensagens")
+            logger.info("=== EXECUTANDO AGENTE ===")
+            final_state = await self.message_agent.ainvoke(initial_state, config=config)
+            logger.info("=== AGENTE EXECUTADO COM SUCESSO ===")
 
-            logger.info(f"=== EXECUTANDO AGENTE ===")
-            final_state: MessageAgentState = await self.message_agent.ainvoke(initial_state, config=config)
-            logger.info(f"=== AGENTE EXECUTADO COM SUCESSO ===")
-
-            # Validar estado final
             messages = final_state.get("messages", [])
             if not messages:
-                logger.error(f"Estado final sem mensagens para thread_id {thread_id}")
-                return MessageResponsePayload(
-                    message="Desculpe, houve um problema interno. Tente novamente.",
-                    phone_number=request_payload.phone_number,
-                    message_id=request_payload.message_id,
+                logger.error(f"Estado final sem mensagens para a thread_id {thread_id}")
+                # Mesmo em caso de erro, tentamos notificar
+                return await self.n8n_client.send_text_message(
+                    to_phone=request_payload.phone_number,
+                    message_text="Desculpe, houve um problema interno. Tente novamente.",
+                    original_received_message_id=request_payload.message_id
                 )
 
-            logger.info(f"=== PROCESSANDO {len(messages)} MENSAGENS ===")
-            for i, msg in enumerate(messages):
-                logger.info(f"Msg {i+1}: {getattr(msg, 'type', 'unknown')} - {getattr(msg, 'content', 'sem conteúdo')[:50]}...")
-
-            # Extrair resposta
             last_message = messages[-1]
             response_content = getattr(last_message, 'content', None)
             
             if not response_content:
-                response_content = "Desculpe, houve um problema ao processar sua mensagem. Como posso ajudar?"
+                response_content = "Desculpe, não consegui gerar uma resposta. Como posso ajudar?"
 
-            logger.info(f"=== RESPOSTA EXTRAÍDA: {response_content[:100]}... ===")
-
-            return MessageResponsePayload(
-                message=response_content,
-                phone_number=final_state.get("phone_number", request_payload.phone_number),
-                message_id=final_state.get("message_id", request_payload.message_id),
+            logger.info(f"=== ENVIANDO RESPOSTA PARA O N8N ===")
+            # AQUI ESTÁ A MUDANÇA PRINCIPAL
+            n8n_response = await self.n8n_client.send_text_message(
+                to_phone=request_payload.phone_number,
+                message_text=response_content,
+                original_received_message_id=request_payload.message_id
             )
 
+            return n8n_response
+
         except Exception as e:
-            logger.error(f"=== ERRO CRÍTICO ===")
+            logger.error(f"=== ERRO CRÍTICO NO PROCESSAMENTO DA MENSAGEM ===")
             logger.error(f"Erro: {str(e)}")
-            logger.error(f"Tipo: {type(e).__name__}")
-            logger.error(f"Traceback completo:")
             logger.error(traceback.format_exc())
-            logger.error(f"=== FIM ERRO ===")
+            # Tenta notificar sobre o erro, se possível
+            error_message = "Ocorreu um erro grave ao processar sua solicitação. A equipe técnica foi notificada."
+            await self.n8n_client.send_text_message(
+                to_phone=request_payload.phone_number,
+                message_text=error_message,
+                original_received_message_id=request_payload.message_id
+            )
+            # Re-lança a exceção para que o FastAPI retorne um 500
             raise

@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     APPHEALTH_API_BASE_URL: str = Field(..., env="APPHEALTH_API_BASE_URL", description="Base URL da API do AppHealth")
     APPHEALTH_API_TOKEN: str = Field(..., env="APPHEALTH_API_TOKEN", description="Token da API do AppHealth")
 
+     # === N8N Webhook Configuration ===
+    N8N_WEBHOOK_URL: Optional[str] = Field(default=None, env="N8N_WEBHOOK_URL", description="URL do Webhook do N8N para enviar respostas")
+
     # === LangChain Configuration ===
     LANGCHAIN_TRACING_V2: Optional[bool] = Field(default=True, description="Habilitar tracing LangChain")
     LANGSMITH_API_KEY: Optional[str] = Field(default=None, description="Chave API LangSmith")

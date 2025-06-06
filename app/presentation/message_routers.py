@@ -14,67 +14,37 @@ async def get_message_service_dependency(agent = Depends(get_message_agent)):
     return MessageService(agent=agent)
 
 @router.post("/", status_code=status.HTTP_200_OK)
-async def send_message(message_request: MessageRequestPayload, message_service: MessageService = Depends(get_message_service_dependency)):
+async def send_message(
+    message_request: MessageRequestPayload, 
+    message_service: MessageService = Depends(get_message_service_dependency)
+):
     """
-    Endpoint para processar a mensagem recebida
+    Endpoint para processar a mensagem recebida e disparar o envio da resposta
+    via N8N. O corpo da resposta indica o status do envio ao webhook.
     """
-
     try:
-        message_response = await message_service.process_message(message_request)
+        # O serviço agora lida com o envio da mensagem
+        n8n_result = await message_service.process_message(message_request)
 
-        logger.info(f"Mensagem processada: {message_response}")
+        logger.info(f"Resultado do envio para o N8N: {n8n_result}")
 
-        return message_response
+        # Se houve um erro no envio para o N8N, retornamos um erro interno
+        if "error" in n8n_result:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Falha ao enviar a resposta para o webhook: {n8n_result.get('details', 'Erro desconhecido')}"
+            )
+
+        # Retornamos o status do envio para o N8N como sucesso
+        return {"status": "message_processed_and_sent", "n8n_response": n8n_result}
     
     except HTTPException:
+        # Re-lança exceções HTTP que já foram tratadas
         raise
     
     except Exception as e:
-        logger.error(f"Erro ao processar mensagem: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-
-@router.post("/test", status_code=status.HTTP_200_OK)
-async def test_endpoint():
-    """
-    Endpoint de teste para verificar se a API está funcionando
-    """
-    try:
-        logger.info("=== TESTE SIMPLES ===")
-        return {"status": "OK", "message": "Endpoint funcionando"}
-    except Exception as e:
-        logger.error(f"Erro no teste: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.post("/test-agent", status_code=status.HTTP_200_OK)
-async def test_agent(agent = Depends(get_message_agent)):
-    """
-    Endpoint de teste para verificar se o agente está funcionando
-    """
-    try:
-        logger.info("=== TESTE DO AGENTE ===")
-        
-        # Teste básico sem usar o MessageService
-        test_state = {
-            "message": "teste",
-            "phone_number": "+123456789",
-            "message_id": "test_id",
-            "messages": [HumanMessage(content="teste")],
-            "next_step": "",
-            "conversation_context": None,
-            "extracted_scheduling_details": None,
-            "missing_fields": None,
-            "awaiting_user_input": None
-        }
-        
-        config = {"configurable": {"thread_id": "+123456789"}}
-        
-        logger.info("Executando agente diretamente...")
-        result = await agent.ainvoke(test_state, config=config)
-        logger.info(f"Agente executado. Resultado: {len(result.get('messages', []))} mensagens")
-        
-        return {"status": "OK", "messages_count": len(result.get('messages', []))}
-        
-    except Exception as e:
-        logger.error(f"Erro no teste do agente: {e}")
-        logger.error(traceback.format_exc())
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Erro inesperado no endpoint /message: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail="Ocorreu um erro interno ao processar a mensagem."
+        )
