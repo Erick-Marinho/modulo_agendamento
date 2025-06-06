@@ -44,9 +44,6 @@ class MessageAgentBuilder:
         self.graph = StateGraph(MessageAgentState)
         self.router = MessageRouter() 
 
-        # Instanciar dependências para as Tools e LLM
-        self.llm_service = LLMFactory.create_llm_service("openai")
-
         # 2. Cliente API e Repositório
         self.apphealth_api_client = AppHealthAPIClient()
         self.apphealth_repository = AppHealthAPIMedicalRepository(api_client=self.apphealth_api_client)
@@ -83,6 +80,9 @@ class MessageAgentBuilder:
         self.graph.add_node("fallback_node", fallback_node)
         self.graph.add_node("check_availability_node", check_availability_node)
         self.graph.add_node("book_appointment_node", book_appointment_node) 
+
+        # Instanciar dependências para as Tools e LLM
+        self.llm_service = LLMFactory.create_llm_service("openai")
 
         # Novos nós para Tools
         tool_calling_agent_func = create_tool_calling_agent_node(
@@ -126,7 +126,9 @@ class MessageAgentBuilder:
             {
                 EXECUTE_MEDICAL_TOOLS_NODE_NAME: EXECUTE_MEDICAL_TOOLS_NODE_NAME,
                 "END": END,
-                "fallback_node": "fallback_node"             }
+                "fallback_node": "fallback_node",
+                "validate_and_confirm_node": "validate_and_confirm_node"  
+            }
         )
 
         self.graph.add_edge(EXECUTE_MEDICAL_TOOLS_NODE_NAME, AGENT_TOOL_CALLER_NODE_NAME)

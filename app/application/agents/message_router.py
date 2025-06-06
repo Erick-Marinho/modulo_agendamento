@@ -40,8 +40,6 @@ class MessageRouter:
     def decide_after_tool_agent(self, state):
         """
         Decide para onde ir depois que o AGENT_TOOL_CALLER_NODE_NAME (agent_node_func) rodou.
-        Se houver tool_calls, vai para o TOOL_NODE_NAME (executor).
-        Senão, o agente respondeu diretamente, então pode ir para END ou outro nó.
         """
         next_step_from_agent = state.get("next_step", "").lower()
         logger.info(f"Roteando (from decide_after_tool_agent) com base no next_step_from_agent: '{next_step_from_agent}'")
@@ -49,12 +47,18 @@ class MessageRouter:
         if next_step_from_agent == TOOL_NODE_NAME.lower(): 
             logger.info(f"Direcionando para execução da ferramenta: {TOOL_NODE_NAME}")
             return TOOL_NODE_NAME
-        elif next_step_from_agent == "completed": 
+        
+        # --- NOVA LÓGICA DE ROTEAMENTO ---
+        if next_step_from_agent == "validate_and_confirm":
+            logger.info("Agente de ferramenta concluiu e está pronto para validar. Direcionando para validate_and_confirm_node.")
+            return "validate_and_confirm_node"
+        
+        if next_step_from_agent == "completed": 
             logger.info("Agente de ferramenta respondeu diretamente. Finalizando fluxo do tool agent.")
             return "END" 
-        else:
-            logger.warning(f"Fluxo inesperado após agente de ferramenta: next_step='{next_step_from_agent}'. Direcionando para fallback.")
-            return "fallback_node"
+        
+        logger.warning(f"Fluxo inesperado após agente de ferramenta: next_step='{next_step_from_agent}'. Direcionando para fallback.")
+        return "fallback_node"
 
 
     def decide_after_clarification(self, state):

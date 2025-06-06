@@ -7,12 +7,14 @@ from app.application.agents.prompts.generate_success_message_prompt import GENER
 from app.application.agents.prompts.generate_correction_request_prompt import GENERATE_CORRECTION_REQUEST_TEMPLATE
 from app.application.agents.prompts.generate_general_help_prompt import GENERATE_GENERAL_HELP_TEMPLATE
 from app.application.agents.prompts.classify_confirmation_response_prompt import CLASSIFY_CONFIRMATION_RESPONSE_TEMPLATE
+from app.application.agents.prompts.translate_date_prompt import TRANSLATE_DATE_PROMPT
 from app.application.interfaces.illm_service import ILLMService
 from app.domain.sheduling_details import SchedulingDetails
 from langchain_core.output_parsers import PydanticOutputParser
-from typing import Optional
+from typing import Optional, List
 from app.infrastructure.config.config import settings
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -232,3 +234,32 @@ class OpenAIService(ILLMService):
         except Exception as e:
             logger.error(f"Erro ao classificar resposta de confirmação: {e}")
             return "unclear"
+        
+    def translate_natural_date(
+        self,
+        user_preference: str,
+        current_date: str
+    ) -> str:
+        """
+        Traduz a data natural do usuário usando o LLM.
+        """
+        chain = TRANSLATE_DATE_PROMPT | self.client
+        try:
+            prompt_values = {
+                "current_date": current_date,
+                "user_preference": user_preference,
+            }
+            llm_response = chain.invoke(prompt_values)
+            translated_date = llm_response.content.strip()
+
+            # Validação simples de formato (YYYY-MM-DD) ou a string de erro
+            if re.match(r'^\d{4}-\d{2}-\d{2}$', translated_date) or translated_date == "invalid_date":
+                logger.info(f"LLM traduziu '{user_preference}' para '{translated_date}'")
+                return translated_date
+
+            logger.warning(f"LLM retornou formato de data inesperado: '{translated_date}'")
+            return "invalid_date"
+
+        except Exception as e:
+            logger.error(f"Erro ao traduzir data natural: {e}")
+            return "invalid_date"

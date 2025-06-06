@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from app.domain.sheduling_details import SchedulingDetails
-from typing import Optional
+from typing import Optional, List
 
 class ILLMService(ABC):
     """Interface base para serviço de LLM"""
@@ -162,5 +162,17 @@ class ILLMService(ABC):
             
         Returns:
             Categoria: "confirmed", "simple_rejection", "correction_with_data", ou "unclear"
+        """
+        pass
+
+    @abstractmethod
+    def translate_natural_date(
+        self,
+        user_preference: str,
+        current_date: str
+    ) -> str:
+        """
+        Traduz uma preferência de data em linguagem natural para uma data concreta
+        baseada em uma lista de datas disponíveis.
         """
         pass

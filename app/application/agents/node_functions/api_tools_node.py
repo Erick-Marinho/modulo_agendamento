@@ -1,5 +1,5 @@
 import logging
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, ToolMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langgraph.prebuilt import ToolNode
 
@@ -55,11 +55,24 @@ def create_tool_calling_agent_node(llm_service: ILLMService, medical_api_tools: 
     async def agent_node_func(state: MessageAgentState) -> dict:
         logger.info(f"--- Executando nó agente de chamada de ferramenta (agent_node_func) ---")
 
+        # --- NOVA LÓGICA INTERNA DO NÓ ---
+
+        # Se a última mensagem for uma ToolMessage, significa que uma ferramenta acabou de rodar.
+        last_message = state["messages"][-1]
+        if isinstance(last_message, ToolMessage):
+            # Se já temos todos os detalhes, podemos avançar direto para a validação.
+            details = state.get("extracted_scheduling_details")
+            if details and all([details.professional_name, details.specialty, details.date_preference, details.time_preference, details.service_type]):
+                logger.info("Tool executada e todos os detalhes estão preenchidos. Avançando para validação.")
+                # Cria uma mensagem de transição e define o próximo passo
+                ai_message = AIMessage(content="Ok, encontrei as informações. Vamos confirmar os dados para o seu agendamento.")
+                return {"messages": state["messages"] + [ai_message], "next_step": "validate_and_confirm"}
+
+        # Lógica original para chamar o LLM
         agent_inputs = {"messages": state["messages"]} 
 
         try:
             ai_response_or_tool_call: AIMessage = await tool_calling_agent_runnable.ainvoke(agent_inputs)
-
             new_messages = state["messages"] + [ai_response_or_tool_call]
 
             if ai_response_or_tool_call.tool_calls:
