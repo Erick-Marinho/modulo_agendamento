@@ -18,6 +18,18 @@ SCHEDULING_VALIDATION_TEMPLATE = ChatPromptTemplate.from_template(
     }}
     ```
 
+    Quero mudar o medico para a Dr Ana, e tambem quero mudar o dia
+
+    {
+        "new_state": {
+            dados tualizados
+        },
+
+        "question": "falta voce me informar qual data que voce quer mudar?"
+    }
+
+
+
     Categorize a intenção do usuário da seguinte forma:
 
     CONFIRMED_SCHEDULING_DATA

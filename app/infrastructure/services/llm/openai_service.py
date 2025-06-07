@@ -1,4 +1,5 @@
 from langchain_openai import ChatOpenAI
+from app.application.agents.prompts.analyze_user_intent_prompt import ANALYZE_USER_INTENT_TEMPLATE
 from app.application.agents.prompts.classify_message_prompt import CLASSIFY_MESSAGE_TEMPLATE
 from app.application.agents.prompts.extract_scheduling_details_prompt import EXTRACT_SCHEDULING_DETAILS_TEMPLATE
 from app.application.agents.prompts.request_missing_info_prompt import REQUEST_MISSING_INFO_TEMPLATE
@@ -82,6 +83,33 @@ class OpenAIService(ILLMService):
         except Exception as e:
             logger.error(f"Erro ao gerar pergunta de esclarecimento: {e}")
             return None
+        
+    def analyze_user_intent(self, conversation_history, user_message: str, existing_scheduling_details: Optional[SchedulingDetails]) -> str:
+        """
+        Analisa a intenção do usuário com base na conversa e na mensagem atual.
+
+        Args:
+            conversation_history: Histórico da conversa até o momento.
+            user_message: Mensagem do usuário.
+
+        Returns:
+            Uma string indicando a intenção do usuário:
+            - CREATE/READ/UPDATE/CANCEL/UNCLEAR
+        """
+        try:
+            chain = ANALYZE_USER_INTENT_TEMPLATE | self.client
+            
+            llm_response = chain.invoke({
+                "conversation_history": conversation_history,
+                "existing_scheduling_details": existing_scheduling_details,
+                "current_message": user_message
+            })
+
+            return llm_response.content
+        except Exception as e:
+            logger.error(f"Erro ao analisar intenção do usuário: {e}")
+            return None
+        
 
     def validate_scheduling_user_confirmation(self, user_message: str):
         

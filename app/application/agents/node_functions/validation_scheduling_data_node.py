@@ -18,12 +18,11 @@ def validation_scheduling_data_node(state: MessageAgentState) -> MessageAgentSta
     """
     new_state = {}
     
-    if state.get("next_step") == "PROCEED_TO_VALIDATION":
-        ai_response_text = "Por favor confirme se os dados do agendamento estão corretos! Me informe se você quer fazer alguma alteração!"
-        new_state = {
-            "messages": [AIMessage(content=ai_response_text)],
-            "next_step": "END_AWAITING_USER_VALIDATION"
-        }
+    ai_response_text = "Por favor confirme se os dados do agendamento estão corretos! Me informe se você quer fazer alguma alteração!"
+    new_state = {
+        "messages": [AIMessage(content=ai_response_text)],
+        "next_step": "END_AWAITING_USER_VALIDATION"
+    }
     
     llm_type = "openai"
     llm_service: ILLMService = LLMFactory.create_llm_service(llm_type)
