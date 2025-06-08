@@ -107,7 +107,6 @@ def _format_conversation_history(messages, max_messages: int = 5) -> str:
 
     return "\n".join(formatted_history)
 
-
 def _merge_scheduling_details(existing, new):
     """
     Mescla detalhes de agendamento, priorizando informações mais recentes.
@@ -121,22 +120,12 @@ def _merge_scheduling_details(existing, new):
         return existing
     
     merged = SchedulingDetails(
-        professional_name=existing.professional_name,
-        specialty=existing.specialty,
-        date_preference=existing.date_preference,
-        time_preference=existing.time_preference,
-        service_type=existing.service_type
-    )
-    
-    if new.professional_name:
-        merged.professional_name = new.professional_name
-    if new.specialty:
-        merged.specialty = new.specialty
-    if new.date_preference:
-        merged.date_preference = new.date_preference
-    if new.time_preference:
-        merged.time_preference = new.time_preference
-    if new.service_type:
-        merged.service_type = new.service_type
+        professional_name=existing.professional_name or new.professional_name,
+        specialty=existing.specialty or new.specialty,
+        date_preference=existing.date_preference or new.date_preference,
+        time_preference=existing.time_preference or new.time_preference,
+        service_type=existing.service_type or new.service_type
+    )   
+
     
     return merged
