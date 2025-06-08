@@ -61,7 +61,7 @@ def clarification_node(state: MessageAgentState) -> MessageAgentState:
             logger.info(f"Pergunta de esclarecimento gerada: {ai_response_text}")
 
         except Exception as e:
-            logger.error(f"Erro ao gerar pergunta de esclarecimento via LLM: {e}")
+          
             ai_response_text = f"Para continuarmos com o agendamento do(a) {service_type_info}, preciso de mais alguns detalhes: {missing_fields_str}. Poderia me informar, por favor?"
 
         current_messages.append(AIMessage(content=ai_response_text))

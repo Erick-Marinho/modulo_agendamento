@@ -23,20 +23,9 @@ def validation_scheduling_data_node(state: MessageAgentState) -> MessageAgentSta
         "messages": [AIMessage(content=ai_response_text)],
         "next_step": "END_AWAITING_USER_VALIDATION"
     }
-    
-    llm_type = "openai"
-    llm_service: ILLMService = LLMFactory.create_llm_service(llm_type)
-    
-    response = llm_service.validate_scheduling_user_confirmation(user_message=state.get("message"))
-    ia_response_json = json.loads(response) if response else {"intent": "UNCLEAR", "change_details": {}}
-    
-    next_step = ia_response_json.get("intent", "DEFAULT_END")
-    
-    print("RESULTADO: ", ia_response_json)
-
+        
     return {
         **state,
         **new_state,
-        "next_step": next_step
     }
         

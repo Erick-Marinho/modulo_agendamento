@@ -1,6 +1,7 @@
 from langgraph.graph import StateGraph, END
 
 from app.application.agents.message_router import MessageRouter
+from app.application.agents.node_functions.update_and_clarify_node import update_and_clarify_node
 from app.application.agents.node_functions.validation_scheduling_data_node import validation_scheduling_data_node
 from app.application.agents.node_functions.fallback_node import fallback_node
 from app.application.agents.node_functions.scheduling_node import scheduling_node
@@ -24,8 +25,11 @@ class MessageAgentBuilder:
         """
         self.routers = MessageRouter()
         self.graph = StateGraph(MessageAgentState)
+
         self.route_orquestrator = self.routers.route_orquestrator
+        self.route_after_scheduling_node = self.routers.route_after_scheduling_node
         self.route_after_clarification = self.routers.decide_after_clarification
+        self.route_after_update_and_clarify_node = self.routers.route_after_update_and_clarify_node
         self.route_validation_scheduling_data = self.routers.route_validation_scheduling_data
         self._build_graph()
 
@@ -44,11 +48,13 @@ class MessageAgentBuilder:
         Constroi o nó do agente de mensagem
         """
         self.graph.add_node("orquestrator_node", orquestrator_node)
-        self.graph.add_node("greeting_node", greeting_node)
+        
         self.graph.add_node("scheduling_node", scheduling_node)
         self.graph.add_node("collection_node", collection_node)
         self.graph.add_node("clarification_node", clarification_node)
         self.graph.add_node("validation_scheduling_data_node", validation_scheduling_data_node)
+        self.graph.add_node("update_and_clarify_node", update_and_clarify_node)
+        self.graph.add_node("greeting_node", greeting_node)
         self.graph.add_node("farewell_node", farewell_node)
         self.graph.add_node("fallback_node", fallback_node)
 
@@ -66,7 +72,28 @@ class MessageAgentBuilder:
                 "fallback_node": "fallback_node"
             }
         )
-        self.graph.add_edge("scheduling_node", "collection_node")
+
+        # self.graph.add_edge("scheduling_node", "collection_node")
+        self.graph.add_conditional_edges(
+            "scheduling_node",
+            self.route_after_scheduling_node,
+            {
+                "CREATE": "collection_node",
+                "UPDATE": "update_and_clarify_node",
+                "UPDATE_WITHOUT_DATA": END,
+                "DEFAULT_END": END,
+            }
+        )
+        
+        self.graph.add_conditional_edges(
+            "update_and_clarify_node",
+            self.route_after_update_and_clarify_node,
+            {
+                "PROCEED_TO_VALIDATION": "validation_scheduling_data_node",
+                "END_AWAITING_USER_FOR_DATA": END,
+                "DEFAULT_END": END,
+            }
+        )
         self.graph.add_edge("collection_node", "clarification_node")
         
 
@@ -85,8 +112,8 @@ class MessageAgentBuilder:
             self.route_validation_scheduling_data,
             {
                 "END_AWAITING_USER_VALIDATION": END,
-                "CONFIRMED_SCHEDULING_DATA": END, # proximo node
-                "ALTER_SCHEDULING_DATA": "collection_node",
+                # "CONFIRMED_SCHEDULING_DATA": END, # proximo node
+                # "ALTER_SCHEDULING_DATA": "update_and_clarify_node",
                 "UNCLEAR": END,
                 "DEFAULT_END": END,
             }

@@ -68,10 +68,15 @@ class ILLMService(ABC):
         Returns:
             Uma string indicando a intenção do usuário:
             - CREATE: Se o usuario quiser criar um novo agendamento
-            - READ: Se o usuario quiser consultar um agendamento existente
             - UPDATE: Se o usuario quiser alterar um agendamento existente
-            - CANCEL: Se o usuario quiser cancelar um agendamento existente
             - UNCLEAR: Se a intenção não está clara
+        """
+        pass
+
+    @abstractmethod
+    def update_scheduling_datails(self, scheduling_details: SchedulingDetails, user_message: str) -> SchedulingDetails:
+        """
+        Atualiza os dados do agendamento com base na mensagem do usuário.
         """
         pass
     

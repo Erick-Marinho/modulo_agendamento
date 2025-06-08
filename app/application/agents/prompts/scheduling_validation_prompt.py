@@ -11,24 +11,10 @@ SCHEDULING_VALIDATION_TEMPLATE = ChatPromptTemplate.from_template(
     **IMPORTANTE: Você DEVE retornar APENAS um objeto JSON válido, sem nenhum texto adicional antes ou depois.**
 
     Estrutura do JSON de resposta:
-    ```json
     {{
         "intent": "TIPO_INTENCAO",
         "change_details": {{}}
     }}
-    ```
-
-    Quero mudar o medico para a Dr Ana, e tambem quero mudar o dia
-
-    {
-        "new_state": {
-            dados tualizados
-        },
-
-        "question": "falta voce me informar qual data que voce quer mudar?"
-    }
-
-
 
     Categorize a intenção do usuário da seguinte forma:
 

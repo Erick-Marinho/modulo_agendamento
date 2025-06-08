@@ -1,13 +1,16 @@
+import json
+from mailbox import BabylMessage
 from langchain_openai import ChatOpenAI
 from app.application.agents.prompts.analyze_user_intent_prompt import ANALYZE_USER_INTENT_TEMPLATE
 from app.application.agents.prompts.classify_message_prompt import CLASSIFY_MESSAGE_TEMPLATE
 from app.application.agents.prompts.extract_scheduling_details_prompt import EXTRACT_SCHEDULING_DETAILS_TEMPLATE
 from app.application.agents.prompts.request_missing_info_prompt import REQUEST_MISSING_INFO_TEMPLATE
 from app.application.agents.prompts.scheduling_validation_prompt import SCHEDULING_VALIDATION_TEMPLATE
+from app.application.agents.prompts.update_scheduling_details_prompt import UPDATE_SCHEDULING_DETAILS_TEMPLATE
 from app.application.interfaces.illm_service import ILLMService
 from app.domain.sheduling_details import SchedulingDetails
 from langchain_core.output_parsers import PydanticOutputParser
-from typing import Optional
+from typing import List, Optional
 from app.infrastructure.config.config import settings
 import logging
 
@@ -84,21 +87,20 @@ class OpenAIService(ILLMService):
             logger.error(f"Erro ao gerar pergunta de esclarecimento: {e}")
             return None
         
-    def analyze_user_intent(self, conversation_history, user_message: str, existing_scheduling_details: Optional[SchedulingDetails]) -> str:
+    def analyze_user_intent(self, conversation_history: List[BabylMessage], user_message: str, existing_scheduling_details: Optional[SchedulingDetails]) -> str:
         """
         Analisa a intenção do usuário com base na conversa e na mensagem atual.
 
         Args:
             conversation_history: Histórico da conversa até o momento.
             user_message: Mensagem do usuário.
-
         Returns:
             Uma string indicando a intenção do usuário:
             - CREATE/READ/UPDATE/CANCEL/UNCLEAR
         """
         try:
             chain = ANALYZE_USER_INTENT_TEMPLATE | self.client
-            
+
             llm_response = chain.invoke({
                 "conversation_history": conversation_history,
                 "existing_scheduling_details": existing_scheduling_details,
@@ -110,6 +112,32 @@ class OpenAIService(ILLMService):
             logger.error(f"Erro ao analisar intenção do usuário: {e}")
             return None
         
+    def update_scheduling_datails(self, scheduling_details: SchedulingDetails, user_message: str) -> SchedulingDetails:
+        chain = UPDATE_SCHEDULING_DETAILS_TEMPLATE | self.client
+
+        try:
+
+            llm_response = chain.invoke({
+                "scheduling_details": scheduling_details,
+                "user_message": user_message
+            })
+
+            response_data = json.loads(llm_response.content)
+    
+            # Acessar as propriedades
+            new_state = response_data["new_state"]
+            question = response_data["question"]
+
+            response_data = json.dumps(llm_response.content)
+
+            return {
+                "new_state": new_state,
+                "question": question
+            }
+
+        except Exception as e:
+            logger.error(f"Erro ao atualizar dados do agendamento: {e}")
+            return None
 
     def validate_scheduling_user_confirmation(self, user_message: str):
         
@@ -126,13 +154,22 @@ class OpenAIService(ILLMService):
             - "ALTER_SPECIFIC_SCHEDULING_DATA" se o usuário deseja fazer alterações especificando e passando novos valores
             - "UNCLEAR" se a intenção não está clara
         """
-        try:
-            chain = SCHEDULING_VALIDATION_TEMPLATE | self.client
-            llm_response = chain.invoke({"user_query": user_message})
+        # try:
+        #     chain = SCHEDULING_VALIDATION_TEMPLATE | self.client
+        #     llm_response = chain.invoke({"user_query": user_message})
 
-            
-            return llm_response.content
-        except Exception as e:
-            logger.error(f"Erro ao validar confirmação do agendamento: {e}")
-            # return '{"intent": "UNCLEAR", "change_details": {}}'
-            return None
+        #     response_data = json.loads(llm_response.content)
+
+        #     intent = response_data["intent"]
+        #     change_details = response_data["change_details"]
+
+        #     return {
+        #         "intent": intent,
+        #         "change_details": change_details
+        #     }
+        
+        # except Exception as e:
+        #     logger.error(f"Erro ao validar confirmação do agendamento: {e}")
+        #     # return '{"intent": "UNCLEAR", "change_details": {}}'
+        #     return None
+        pass

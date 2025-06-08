@@ -22,24 +22,33 @@ class MessageRouter:
             return "fallback_node"
 
     def decide_after_clarification(self, state):
-        """
-        Função de decisão para roteamento condicional após o nó de esclarecimento.
-        Lê o campo 'next_step' do estado.
-        """
-
         next_step = state.get("next_step")
-        if next_step == "END_AWAITING_USER":
-            return "END_AWAITING_USER"
-        elif next_step == "PROCEED_TO_VALIDATION":
-            return "PROCEED_TO_VALIDATION"
-        else:
-            logger.warning(f"valor inesperado para next_step após clarification_node: {next_step}. Direcionando para END")
+
+        if not next_step:
             return "DEFAULT_END"
+        
+        return next_step
 
     def route_validation_scheduling_data(self, state: MessageAgentState):
         next_step = state.get("next_step")
 
-        if next_step:
-            return next_step
-        else:
+        if not next_step:
             return "DEFAULT_END"
+
+        return next_step
+        
+    def route_after_scheduling_node(self, state: MessageAgentState) -> str:
+        next_step = state.get("next_step")
+        
+        if not next_step:
+            return "DEFAULT_END"
+        
+        return next_step
+    
+    def route_after_update_and_clarify_node(self, state: MessageAgentState) -> str:
+        next_step = state.get("next_step")
+
+        if not next_step:
+            return "DEFAULT_END"
+        
+        return next_step

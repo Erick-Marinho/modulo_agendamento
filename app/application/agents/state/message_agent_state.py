@@ -15,8 +15,8 @@ class MessageAgentState(TypedDict):
     message_id: str
 
     extracted_scheduling_details: Optional[SchedulingDetails]
-    detected_changes: Optional[List[str]]
 
     conversation_context: str
     scheduling_context: str
     next_step: str
+
