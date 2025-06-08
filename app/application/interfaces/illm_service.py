@@ -19,12 +19,12 @@ class ILLMService(ABC):
         pass
 
     @abstractmethod
-    def extract_scheduling_details(self, user_message: str) -> Optional[SchedulingDetails]:
+    def extract_scheduling_details(self, conversation_history: str) -> Optional[SchedulingDetails]:
         """
         Extrai os detalhes de agendamento da mensagem do usuário.
 
         Args:
-            user_message: A mensagem do usuário contendo os detalhes de agendamento.
+            conversation_history: A mensagem do usuário contendo os detalhes de agendamento.
 
         Returns:
         """
@@ -79,6 +79,35 @@ class ILLMService(ABC):
         Atualiza os dados do agendamento com base na mensagem do usuário.
         """
         pass
+
+    @abstractmethod
+    def classification_confirmation_response(self, user_message: str) -> str:
+        """
+        Classifica a resposta do usuário como confirmação ou não
+        """
+        pass
+
+    @abstractmethod
+    def generate_success_message(self) -> str:
+        """
+        Gera uma mensagem de sucesso para o usuário.
+        """
+        pass
+    
+    @abstractmethod
+    def generate_correction_request_message(self) -> str:
+        """
+        Gera uma mensagem de solicitação de correção para o usuário.
+        """
+        pass
+
+    @abstractmethod
+    def generate_confirmation_message(self, details: SchedulingDetails) -> str:
+        """
+        Gera uma mensagem de confirmação dos dados de agendamento.
+        """
+        pass
+    
     
     @abstractmethod
     def validate_scheduling_user_confirmation(self, user_message: str) -> str:

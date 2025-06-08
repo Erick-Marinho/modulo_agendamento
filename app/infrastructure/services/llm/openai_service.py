@@ -4,9 +4,13 @@ from langchain_openai import ChatOpenAI
 from app.application.agents.prompts.analyze_user_intent_prompt import ANALYZE_USER_INTENT_TEMPLATE
 from app.application.agents.prompts.classify_message_prompt import CLASSIFY_MESSAGE_TEMPLATE
 from app.application.agents.prompts.extract_scheduling_details_prompt import EXTRACT_SCHEDULING_DETAILS_TEMPLATE
+from app.application.agents.prompts.generate_confirmation_prompt import GENERATE_CONFIRMATION_TEMPLATE
+from app.application.agents.prompts.generate_correction_request_prompt import GENERATE_CORRECTION_REQUEST_TEMPLATE
+from app.application.agents.prompts.generate_success_message_prompt import GENERATE_SUCCESS_MESSAGE_TEMPLATE
 from app.application.agents.prompts.request_missing_info_prompt import REQUEST_MISSING_INFO_TEMPLATE
 from app.application.agents.prompts.scheduling_validation_prompt import SCHEDULING_VALIDATION_TEMPLATE
 from app.application.agents.prompts.update_scheduling_details_prompt import UPDATE_SCHEDULING_DETAILS_TEMPLATE
+from app.application.agents.prompts.classify_confirmation_response_prompt import CLASSIFY_CONFIRMATION_RESPONSE_TEMPLATE
 from app.application.interfaces.illm_service import ILLMService
 from app.domain.sheduling_details import SchedulingDetails
 from langchain_core.output_parsers import PydanticOutputParser
@@ -41,11 +45,11 @@ class OpenAIService(ILLMService):
             logger.error(f"Erro ao classificar mensagem: {e}")
             return None
 
-    def extract_scheduling_details(self, user_message: str) -> Optional[SchedulingDetails]:
+    def extract_scheduling_details(self, conversation_history: str) -> Optional[SchedulingDetails]:
         parser = PydanticOutputParser(pydantic_object=SchedulingDetails)
         chain = EXTRACT_SCHEDULING_DETAILS_TEMPLATE | self.client | parser
         try:
-            extract_data = chain.invoke({"conversation_history": user_message})
+            extract_data = chain.invoke({"conversation_history": conversation_history})
             return extract_data
         except Exception as e:
             logger.error(f"Erro ao extrair detalhes do agendamento: {e}")
@@ -114,7 +118,10 @@ class OpenAIService(ILLMService):
         
     def update_scheduling_datails(self, scheduling_details: SchedulingDetails, user_message: str) -> SchedulingDetails:
         chain = UPDATE_SCHEDULING_DETAILS_TEMPLATE | self.client
+        
 
+        print(f"PROMPT: {UPDATE_SCHEDULING_DETAILS_TEMPLATE}")
+        
         try:
 
             llm_response = chain.invoke({
@@ -123,12 +130,13 @@ class OpenAIService(ILLMService):
             })
 
             response_data = json.loads(llm_response.content)
+
     
             # Acessar as propriedades
             new_state = response_data["new_state"]
             question = response_data["question"]
 
-            response_data = json.dumps(llm_response.content)
+            # response_data = json.dumps(llm_response.content)
 
             return {
                 "new_state": new_state,
@@ -137,6 +145,72 @@ class OpenAIService(ILLMService):
 
         except Exception as e:
             logger.error(f"Erro ao atualizar dados do agendamento: {e}")
+            return None
+
+   
+    
+    def classification_confirmation_response(self, user_message: str) -> str:
+        """
+        Classifica a resposta do usuário como confirmação ou não
+        """
+        chain = CLASSIFY_CONFIRMATION_RESPONSE_TEMPLATE | self.client
+
+        try:
+            llm_response = chain.invoke({"user_response": user_message})
+            classification = llm_response.content.strip().lower()
+
+            valid_categories = ["confirmed", "simple_rejection", "correction_with_data", "unclear"]
+
+            if classification in valid_categories:
+                return classification
+            else:
+                return "unclear"
+
+        except Exception as e:
+            logger.error(f"Erro ao classificar resposta de confirmação: {e}")
+            return "unclear"
+
+
+    def generate_success_message(self) -> str:
+        chain = GENERATE_SUCCESS_MESSAGE_TEMPLATE | self.client
+
+        try:
+            llm_response = chain.invoke({})
+            return llm_response.content
+        except Exception as e:
+            logger.error(f"Erro ao gerar mensagem de sucesso: {e}")
+            return None
+        
+    def generate_correction_request_message(self) -> str:
+        """
+        Gera uma mensagem solicitando correção de dados.
+        """
+        chain = GENERATE_CORRECTION_REQUEST_TEMPLATE | self.client
+        try:
+            llm_response = chain.invoke({})
+            return llm_response.content
+        except Exception as e:
+            logger.error(f"Erro ao gerar mensagem de correção: {e}")
+            return "Me informe o que gostaria de alterar."
+
+    def generate_confirmation_message(self, details: SchedulingDetails) -> str:
+        """
+        Gera uma mensagem de confirmação dos dados de agendamento.
+        """
+        prompt_values = {
+            "professional_name": details.professional_name or "Não especificado",
+            "specialty": details.specialty or "Não especificada",
+            "date_preference": details.date_preference or "Não especificada",
+            "time_preference": details.time_preference or "Não especificado",
+            "service_type": details.service_type or "Não especificado",
+        }
+ 
+        chain = GENERATE_CONFIRMATION_TEMPLATE | self.client
+        try:
+            llm_response = chain.invoke(prompt_values)
+            return llm_response.content
+        except Exception as e:
+            logger.error(f"Erro ao gerar mensagem de confirmação: {e}")
             return None
 
     def validate_scheduling_user_confirmation(self, user_message: str):

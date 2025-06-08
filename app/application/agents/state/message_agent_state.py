@@ -19,4 +19,3 @@ class MessageAgentState(TypedDict):
     conversation_context: str
     scheduling_context: str
     next_step: str
-

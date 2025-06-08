@@ -41,7 +41,7 @@ def collection_node(state: MessageAgentState) -> MessageAgentState:
         llm_type = "openai"
         llm_service = LLMFactory.create_llm_service(llm_type)
 
-        extracted_data = llm_service.extract_scheduling_details(user_message=conversation_hitory_str)
+        extracted_data = llm_service.extract_scheduling_details(conversation_hitory_str)
 
         logger.info(f"Detalhes do agendamento extraídos: {extracted_data}")
 
