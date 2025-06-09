@@ -27,6 +27,23 @@ def _extract_time_from_message(message: str) -> str | None:
     return None
 
 
+def _extract_date_from_conversation(messages: List) -> str | None:
+    """Extrai a data do agendamento das mensagens anteriores."""
+    for msg in reversed(messages):
+        if hasattr(msg, 'content') and isinstance(msg.content, str):
+            # Procura por data no formato DD/MM/YYYY
+            date_match = re.search(r"(\d{2}/\d{2}/\d{4})", msg.content)
+            if date_match:
+                date_str = date_match.group(1)
+                try:
+                    # Converte para formato YYYY-MM-DD
+                    parsed_date = datetime.strptime(date_str, "%d/%m/%Y")
+                    return parsed_date.strftime("%Y-%m-%d")
+                except ValueError:
+                    continue
+    return None
+
+
 async def _get_professional_id_by_name(
     professional_name: str, repository: AppHealthAPIMedicalRepository
 ) -> int | None:
@@ -65,14 +82,18 @@ async def _get_specialty_id_by_name(
 
 
 async def book_appointment_node(state: MessageAgentState) -> MessageAgentState:
-    logger.info(
-        "--- Executando nó book_appointment (Implementação Final e Corrigida) ---"
-    )
+    logger.info("--- Executando nó book_appointment (Versão Corrigida) ---")
     current_messages = state.get("messages", [])
     details = state.get("extracted_scheduling_details")
 
     try:
-        # 1. Extrair horário da última mensagem
+        # 1. Validações iniciais
+        if not details:
+            raise ValueError("Detalhes do agendamento não encontrados no estado.")
+
+        logger.info(f"Detalhes do agendamento: {details}")
+
+        # 2. Extrair horário escolhido da última mensagem do usuário
         last_user_message = next(
             (
                 msg.content
@@ -81,51 +102,49 @@ async def book_appointment_node(state: MessageAgentState) -> MessageAgentState:
             ),
             None,
         )
+        
         chosen_time = _extract_time_from_message(last_user_message)
         if not chosen_time:
             raise ValueError(
                 f"Não foi possível extrair um horário da mensagem: '{last_user_message}'"
             )
+        
+        logger.info(f"Horário escolhido extraído: {chosen_time}")
 
-        # 2. Instanciar dependências
+        # 3. Extrair data das mensagens da conversa
+        appointment_date = _extract_date_from_conversation(current_messages)
+        if not appointment_date:
+            raise ValueError("Não foi possível extrair a data do agendamento das mensagens.")
+        
+        logger.info(f"Data do agendamento extraída: {appointment_date}")
+
+        # 4. Instanciar dependências
         api_client = AppHealthAPIClient()
         repository = AppHealthAPIMedicalRepository(api_client)
 
-        # 3. Obter IDs de forma segura USANDO O NOME
+        # 5. Obter IDs necessários
         professional_id = await _get_professional_id_by_name(
             details.professional_name, repository
         )
         if not professional_id:
             raise ValueError(
-                f"Não foi possível encontrar o ID para o profissional '{details.professional_name}' no passo final."
+                f"Não foi possível encontrar o ID para o profissional '{details.professional_name}'"
             )
 
         specialty_id = await _get_specialty_id_by_name(details.specialty, repository)
+        
+        logger.info(f"Professional ID: {professional_id}, Specialty ID: {specialty_id}")
 
-        # 4. Montar a data do agendamento
-        day_number_match = re.search(r"\d+", details.date_preference)
-        if not day_number_match:
-            # Fallback se a preferência de data não tiver um número (ex: "próxima segunda")
-            # Neste ponto, o agente já deveria ter uma data concreta, mas é uma segurança
-            translated_date_from_context = (
-                state.get("messages", [])[-2].content.split("(")[1].split(")")[0]
-            )  # Pega a data da mensagem anterior do AI
-            data_agendamento = datetime.strptime(
-                translated_date_from_context, "%d/%m/%Y"
-            ).strftime("%Y-%m-%d")
-        else:
-            day_number = int(day_number_match.group())
-            today = datetime.now()
-            target_month = today.month if day_number >= today.day else today.month + 1
-            data_agendamento = today.replace(
-                month=target_month, day=day_number
-            ).strftime("%Y-%m-%d")
+        # 6. Calcular hora de fim (1 hora após o início)
+        start_hour, start_minute = chosen_time.split(":")
+        end_hour = int(start_hour) + 1
+        end_time = f"{end_hour:02d}:{start_minute}"
 
-        # 5. Construir o payload
+        # 7. Construir o payload
         payload = {
-            "data": data_agendamento,
+            "data": appointment_date,
             "horaInicio": f"{chosen_time}:00",
-            "horaFim": f"{int(chosen_time.split(':')[0]) + 1:02d}:{chosen_time.split(':')[1]}:00",
+            "horaFim": f"{end_time}:00",
             "nome": "Paciente Agendado via Chatbot",
             "telefonePrincipal": state.get("phone_number", ""),
             "situacao": "AGENDADO",
@@ -139,22 +158,53 @@ async def book_appointment_node(state: MessageAgentState) -> MessageAgentState:
 
         logger.info(f"Payload final para agendamento: {payload}")
 
-        # 6. Chamar a API de agendamento
-        await api_client.book_appointment_on_api(payload)
+        # 8. Chamar a API de agendamento
+        try:
+            result = await api_client.book_appointment_on_api(payload)
+            logger.info(f"Agendamento realizado com sucesso: {result}")
+        except Exception as api_error:
+            logger.error(f"Erro na API de agendamento: {api_error}")
+            raise api_error
 
-        data_formatada = datetime.strptime(data_agendamento, "%Y-%m-%d").strftime(
-            "%d/%m/%Y"
-        )
-        response_text = f"Pronto! Agendamento confirmado com sucesso para o dia {data_formatada} às {chosen_time} com {details.professional_name}. Obrigado por utilizar nossos serviços!"
+        # 9. Gerar mensagem de sucesso
+        date_formatted = datetime.strptime(appointment_date, "%Y-%m-%d").strftime("%d/%m/%Y")
+        response_text = f"Perfeito! Agendamento confirmado com sucesso para o dia {date_formatted} às {chosen_time} com {details.professional_name}. Obrigado por utilizar nossos serviços!"
+
+        # 10. Atualizar estado com horário escolhido
+        details_dict = details.__dict__ if hasattr(details, '__dict__') else details
+        updated_details = {
+            **details_dict,
+            "time_preference": details.time_preference,
+            "specific_time": chosen_time
+        }
+
+        final_message = AIMessage(content=response_text)
+        return {
+            **state,
+            "messages": current_messages + [final_message],
+            "extracted_scheduling_details": updated_details,
+            "missing_fields": [],  # Limpar campos faltantes
+            "conversation_context": "completed",
+            "next_step": "completed",
+        }
 
     except Exception as e:
         logger.error(f"Erro crítico no nó de agendamento: {e}", exc_info=True)
-        response_text = "Tive um problema ao tentar confirmar seu agendamento no sistema. Por favor, tente novamente em alguns instantes ou entre em contato com nossa central."
+        
+        # Mensagem de erro mais específica baseada no tipo de erro
+        if "API" in str(e) or "HTTP" in str(e):
+            response_text = "Tive um problema de conexão com o sistema de agendamentos. Por favor, tente novamente em alguns instantes ou entre em contato com nossa central."
+        elif "ID" in str(e) or "profissional" in str(e).lower():
+            response_text = "Houve um problema ao localizar o profissional no sistema. Por favor, entre em contato com nossa central para finalizar o agendamento."
+        elif "horário" in str(e).lower() or "time" in str(e).lower():
+            response_text = "Não consegui processar o horário escolhido. Por favor, informe novamente o horário desejado."
+        else:
+            response_text = "Tive um problema ao tentar confirmar seu agendamento no sistema. Por favor, tente novamente em alguns instantes ou entre em contato com nossa central."
 
-    final_message = AIMessage(content=response_text)
-    return {
-        **state,
-        "messages": current_messages + [final_message],
-        "conversation_context": "completed",
-        "next_step": "completed",
-    }
+        final_message = AIMessage(content=response_text)
+        return {
+            **state,
+            "messages": current_messages + [final_message],
+            "conversation_context": "error",
+            "next_step": "completed",
+        }

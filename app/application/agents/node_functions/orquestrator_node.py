@@ -46,6 +46,22 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
         )
         return {**state, "next_step": "scheduling_info"}
 
+    # NOVA LÓGICA: Verificar se estamos no meio de um fluxo de agendamento
+    extracted_details = state.get("extracted_scheduling_details")
+    missing_fields = state.get("missing_fields", [])
+    
+    # Se temos detalhes extraídos e campos faltando, provavelmente o usuário está respondendo
+    if extracted_details and missing_fields:
+        logger.info(
+            f"Contexto de agendamento detectado com campos faltando: {missing_fields}. "
+            "Tratando resposta como scheduling_info."
+        )
+        return {
+            **state,
+            "next_step": "scheduling_info",
+            "conversation_context": "scheduling_flow",
+        }
+
     messages = state.get("messages", [])
     last_human_message_content = None
     for msg in reversed(messages):
