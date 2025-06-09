@@ -9,18 +9,20 @@ TRANSLATE_DATE_PROMPT = ChatPromptTemplate.from_template(
     - A data de hoje é: {current_date}
     - A frase do usuário a ser traduzida é: "{user_preference}"
 
-    **Regras:**
-    1.  Interprete a frase do usuário em relação à data de hoje.
-    2.  Retorne APENAS a data resultante no formato YYYY-MM-DD.
-    3.  Não inclua nenhuma outra palavra, explicação ou pontuação.
-    4.  Se a frase não puder ser traduzida para uma data válida (ex: "no natal"), retorne a string "invalid_date".
+    **Regras IMPORTANTES:**
+    1. Quando o usuário disser apenas "dia X" (exemplo: "dia 13"), SEMPRE considere que é o dia X do MÊS ATUAL.
+    2. Se o dia X já passou no mês atual, considere o dia X do PRÓXIMO MÊS.
+    3. Interprete outras frases em relação à data de hoje.
+    4. Retorne APENAS a data resultante no formato YYYY-MM-DD.
+    5. Não inclua nenhuma outra palavra, explicação ou pontuação.
+    6. Se a frase não puder ser traduzida para uma data válida, retorne "invalid_date".
 
-    **Exemplos (considerando hoje = 2025-06-06, Sexta-feira):**
-    - user_preference: "amanhã" -> Retorno: 2025-06-07
-    - user_preference: "próxima segunda-feira" -> Retorno: 2025-06-09
-    - user_preference: "dia 10" -> Retorno: 2025-06-10
-    - user_preference: "depois de amanhã" -> Retorno: 2025-06-08
-    - user_preference: "sexta que vem" -> Retorno: 2025-06-13
+    **Exemplos (considerando hoje = 2025-06-09, Segunda-feira):**
+    - user_preference: "dia 13" -> Retorno: 2025-06-13
+    - user_preference: "dia 8" -> Retorno: 2025-07-08 (pois dia 8 já passou)
+    - user_preference: "amanhã" -> Retorno: 2025-06-10
+    - user_preference: "próxima segunda-feira" -> Retorno: 2025-06-16
+    - user_preference: "depois de amanhã" -> Retorno: 2025-06-11
 
     **Sua Resposta:**
     """
