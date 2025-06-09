@@ -41,9 +41,11 @@ class MessageService:
 
             thread_id = request_payload.phone_number
             config = {"configurable": {"thread_id": thread_id}}
+            
+            message_text = request_payload.message
 
             initial_state: MessageAgentState = {
-                "message": request_payload.message,
+                "message": message_text,
                 "phone_number": request_payload.phone_number,
                 "message_id": request_payload.message_id,
                 "messages": [HumanMessage(content=request_payload.message)],
