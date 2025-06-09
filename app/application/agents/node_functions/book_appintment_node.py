@@ -3,6 +3,7 @@ import re
 from datetime import datetime
 from typing import List
 from langchain_core.messages import AIMessage, HumanMessage
+import httpx
 
 from app.application.agents.state.message_agent_state import MessageAgentState
 from app.infrastructure.clients.apphealth_api_client import AppHealthAPIClient
@@ -166,11 +167,24 @@ async def book_appointment_node(state: MessageAgentState) -> MessageAgentState:
             logger.error(f"Erro na API de agendamento: {api_error}")
             raise api_error
 
-        # 9. Gerar mensagem de sucesso
+        # 9. Remover tag após agendamento bem-sucedido
+        phone_number = state.get("phone_number", "")
+        if phone_number:
+            try:
+                remove_tag_url = f"https://n8n-server.apphealth.com.br/webhook/remove-tag?phone={phone_number}"
+                async with httpx.AsyncClient() as client:
+                    remove_response = await client.get(remove_tag_url, timeout=5.0)
+                    remove_response.raise_for_status()
+                    logger.info(f"Tag removida com sucesso para {phone_number}")
+            except Exception as tag_error:
+                logger.warning(f"Erro ao remover tag para {phone_number}: {tag_error}")
+                # Não falha o agendamento se não conseguir remover a tag
+
+        # 10. Gerar mensagem de sucesso
         date_formatted = datetime.strptime(appointment_date, "%Y-%m-%d").strftime("%d/%m/%Y")
         response_text = f"Perfeito! Agendamento confirmado com sucesso para o dia {date_formatted} às {chosen_time} com {details.professional_name}. Obrigado por utilizar nossos serviços!"
 
-        # 10. Atualizar estado com horário escolhido
+        # 11. Atualizar estado com horário escolhido
         details_dict = details.__dict__ if hasattr(details, '__dict__') else details
         updated_details = {
             **details_dict,
