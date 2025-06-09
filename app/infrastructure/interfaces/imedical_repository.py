@@ -3,6 +3,7 @@ from typing import List
 from app.domain.entities.medical_specialty import ApiMedicalSpecialty
 from app.domain.entities.medical_professional import ApiMedicalProfessional
 
+
 class IMedicalRepository(ABC):
     """
     Interface para repositório de especialidades e profissionais médicos.
@@ -19,7 +20,9 @@ class IMedicalRepository(ABC):
         pass
 
     @abstractmethod
-    async def get_professionals_by_specialty_name(self, specialty_name: str) -> List[ApiMedicalProfessional]:
+    async def get_professionals_by_specialty_name(
+        self, specialty_name: str
+    ) -> List[ApiMedicalProfessional]:
         """
         Retorna profissionais de uma especialidade específica, filtrando os resultados da API.
         """

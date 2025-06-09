@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from app.domain.sheduling_details import SchedulingDetails
 from typing import Optional, List
 
+
 class ILLMService(ABC):
     """Interface base para serviço de LLM"""
 
@@ -19,7 +20,9 @@ class ILLMService(ABC):
         pass
 
     @abstractmethod
-    def extract_scheduling_details(self, user_message: str) -> Optional[SchedulingDetails]:
+    def extract_scheduling_details(
+        self, user_message: str
+    ) -> Optional[SchedulingDetails]:
         """
         Extrai os detalhes de agendamento da mensagem do usuário.
 
@@ -73,7 +76,7 @@ class ILLMService(ABC):
     def generate_success_message(self) -> str:
         """
         Gera uma mensagem de sucesso após confirmação do agendamento.
-        
+
         Returns:
             Mensagem de sucesso humanizada.
         """
@@ -83,7 +86,7 @@ class ILLMService(ABC):
     def generate_correction_request_message(self) -> str:
         """
         Gera uma mensagem solicitando correção de dados.
-        
+
         Returns:
             Mensagem para solicitar correções.
         """
@@ -93,7 +96,7 @@ class ILLMService(ABC):
     def generate_unclear_response_message(self) -> str:
         """
         Gera uma mensagem quando a resposta do usuário não é clara.
-        
+
         Returns:
             Mensagem de esclarecimento.
         """
@@ -103,7 +106,7 @@ class ILLMService(ABC):
     def generate_general_help_message(self) -> str:
         """
         Gera uma mensagem de ajuda geral sobre a clínica.
-        
+
         Returns:
             Mensagem de ajuda humanizada.
         """
@@ -113,7 +116,7 @@ class ILLMService(ABC):
     def generate_greeting_message(self) -> str:
         """
         Gera uma mensagem de saudação.
-        
+
         Returns:
             Mensagem de saudação humanizada.
         """
@@ -123,7 +126,7 @@ class ILLMService(ABC):
     def generate_farewell_message(self) -> str:
         """
         Gera uma mensagem de despedida.
-        
+
         Returns:
             Mensagem de despedida humanizada.
         """
@@ -133,7 +136,7 @@ class ILLMService(ABC):
     def generate_fallback_message(self) -> str:
         """
         Gera uma mensagem quando não entende o usuário.
-        
+
         Returns:
             Mensagem de fallback humanizada.
         """
@@ -156,21 +159,17 @@ class ILLMService(ABC):
     def classify_confirmation_response(self, user_response: str) -> str:
         """
         Classifica a resposta do usuário sobre confirmação de agendamento.
-        
+
         Args:
             user_response: Resposta do usuário à pergunta de confirmação
-            
+
         Returns:
             Categoria: "confirmed", "simple_rejection", "correction_with_data", ou "unclear"
         """
         pass
 
     @abstractmethod
-    def translate_natural_date(
-        self,
-        user_preference: str,
-        current_date: str
-    ) -> str:
+    def translate_natural_date(self, user_preference: str, current_date: str) -> str:
         """
         Traduz uma preferência de data em linguagem natural para uma data concreta
         baseada em uma lista de datas disponíveis.

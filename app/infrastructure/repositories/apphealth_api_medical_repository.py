@@ -7,10 +7,12 @@ from app.infrastructure.clients.apphealth_api_client import AppHealthAPIClient
 
 logger = logging.getLogger(__name__)
 
+
 class AppHealthAPIMedicalRepository(IMedicalRepository):
     """
     Implementação do repositório para especialidades e profissionais médicos.
     """
+
     def __init__(self, api_client: AppHealthAPIClient):
         """
         Inicializa o repositório com o cliente HTTP da API.
@@ -37,12 +39,16 @@ class AppHealthAPIMedicalRepository(IMedicalRepository):
             logger.error(f"Repository: Error fetching API professionals: {e}")
             return []
 
-    async def get_professionals_by_specialty_name(self, specialty_name: str) -> List[ApiMedicalProfessional]:
+    async def get_professionals_by_specialty_name(
+        self, specialty_name: str
+    ) -> List[ApiMedicalProfessional]:
         """
         Retorna profissionais de uma especialidade específica, filtrando os resultados da API.
         """
         try:
-            logger.info(f"Repository: Fetching professionals for specialty: {specialty_name}")
+            logger.info(
+                f"Repository: Fetching professionals for specialty: {specialty_name}"
+            )
             all_professionals = await self.get_api_professionals()
 
             if not all_professionals:
@@ -51,15 +57,23 @@ class AppHealthAPIMedicalRepository(IMedicalRepository):
             filtered_professionals: List[ApiMedicalProfessional] = []
             for prof in all_professionals:
                 for spec_link in prof.especialidades:
-                    if spec_link.especialidade.strip().lower() == specialty_name.strip().lower():
+                    if (
+                        spec_link.especialidade.strip().lower()
+                        == specialty_name.strip().lower()
+                    ):
                         filtered_professionals.append(prof)
                         break
 
-            logger.info(f"Repository: Found {len(filtered_professionals)} professionals for specialty '{specialty_name}'.")
+            logger.info(
+                f"Repository: Found {len(filtered_professionals)} professionals for specialty '{specialty_name}'."
+            )
             return filtered_professionals
         except Exception as e:
-            logger.error(f"Repository: Error fetching professionals by specialty name '{specialty_name}': {e}")
+            logger.error(
+                f"Repository: Error fetching professionals by specialty name '{specialty_name}': {e}"
+            )
             return []
+
 
 if __name__ == "__main__":
     import asyncio
@@ -86,7 +100,9 @@ if __name__ == "__main__":
             print("Nenhum profissional encontrado ou erro na busca.")
 
         print("\nBuscando profissionais de 'Cardiologia' via repositório...")
-        cardio_professionals = await repository.get_professionals_by_specialty_name("Cardiologia")
+        cardio_professionals = await repository.get_professionals_by_specialty_name(
+            "Cardiologia"
+        )
         if cardio_professionals:
             for prof in cardio_professionals:
                 print(f"- ID: {prof.id}, Nome: {prof.nome}")
@@ -97,7 +113,9 @@ if __name__ == "__main__":
             print("Nenhum profissional de Cardiologia encontrado.")
 
         print("\nBuscando profissionais de 'Clínico Geral' via repositório...")
-        clinico_professionals = await repository.get_professionals_by_specialty_name("Clínico Geral")
+        clinico_professionals = await repository.get_professionals_by_specialty_name(
+            "Clínico Geral"
+        )
         if clinico_professionals:
             for prof in clinico_professionals:
                 print(f"- ID: {prof.id}, Nome: {prof.nome}")

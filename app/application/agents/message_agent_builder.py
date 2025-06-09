@@ -1,6 +1,6 @@
 # app/application/agents/message_agent_builder.py
 from langgraph.graph import StateGraph, END
-from langgraph.checkpoint.base import BaseCheckpointSaver # Para o tipo do checkpointer
+from langgraph.checkpoint.base import BaseCheckpointSaver  # Para o tipo do checkpointer
 
 from app.application.agents.message_router import MessageRouter
 from app.application.agents.state.message_agent_state import MessageAgentState
@@ -12,23 +12,38 @@ from app.application.agents.node_functions.greeting_node import greeting_node
 from app.application.agents.node_functions.farewell_node import farewell_node
 from app.application.agents.node_functions.collection_node import collection_node
 from app.application.agents.node_functions.clarification_node import clarification_node
-from app.application.agents.node_functions.scheduling_info_node import scheduling_info_node
-from app.application.agents.node_functions.check_completeness_node import check_completeness_node
+from app.application.agents.node_functions.scheduling_info_node import (
+    scheduling_info_node,
+)
+from app.application.agents.node_functions.check_completeness_node import (
+    check_completeness_node,
+)
 from app.application.agents.node_functions.other_node import other_node
-from app.application.agents.node_functions.validate_and_confirm_node import validate_and_confirm_node
-from app.application.agents.node_functions.final_confirmation_node import final_confirmation_node
-from app.application.agents.node_functions.check_availability_node import check_availability_node
-from app.application.agents.node_functions.book_appintment_node import book_appointment_node
+from app.application.agents.node_functions.validate_and_confirm_node import (
+    validate_and_confirm_node,
+)
+from app.application.agents.node_functions.final_confirmation_node import (
+    final_confirmation_node,
+)
+from app.application.agents.node_functions.check_availability_node import (
+    check_availability_node,
+)
+from app.application.agents.node_functions.book_appintment_node import (
+    book_appointment_node,
+)
 
 from app.infrastructure.clients.apphealth_api_client import AppHealthAPIClient
-from app.infrastructure.repositories.apphealth_api_medical_repository import AppHealthAPIMedicalRepository
-from app.application.agents.tools.medical_api_tools import MedicalApiTools
-from app.infrastructure.services.llm.llm_factory import LLMFactory 
-from app.application.agents.node_functions.api_tools_node import (
-    create_tool_calling_agent_node, 
-    create_api_tool_executor_node,
-    TOOL_NODE_NAME as EXECUTE_MEDICAL_TOOLS_NODE_NAME 
+from app.infrastructure.repositories.apphealth_api_medical_repository import (
+    AppHealthAPIMedicalRepository,
 )
+from app.application.agents.tools.medical_api_tools import MedicalApiTools
+from app.infrastructure.services.llm.llm_factory import LLMFactory
+from app.application.agents.node_functions.api_tools_node import (
+    create_tool_calling_agent_node,
+    create_api_tool_executor_node,
+    TOOL_NODE_NAME as EXECUTE_MEDICAL_TOOLS_NODE_NAME,
+)
+
 AGENT_TOOL_CALLER_NODE_NAME = "agent_tool_caller"
 
 
@@ -42,14 +57,18 @@ class MessageAgentBuilder:
         Inicializa e constroi o grafo do agente de mensagem
         """
         self.graph = StateGraph(MessageAgentState)
-        self.router = MessageRouter() 
+        self.router = MessageRouter()
 
         # 2. Cliente API e Repositório
         self.apphealth_api_client = AppHealthAPIClient()
-        self.apphealth_repository = AppHealthAPIMedicalRepository(api_client=self.apphealth_api_client)
+        self.apphealth_repository = AppHealthAPIMedicalRepository(
+            api_client=self.apphealth_api_client
+        )
 
         # 3. Tools
-        self.medical_api_tools = MedicalApiTools(medical_repository=self.apphealth_repository)
+        self.medical_api_tools = MedicalApiTools(
+            medical_repository=self.apphealth_repository
+        )
 
         self._build_graph()
         self._compiled_agent = self.graph.compile(checkpointer=checkpointer)
@@ -79,15 +98,14 @@ class MessageAgentBuilder:
         self.graph.add_node("farewell_node", farewell_node)
         self.graph.add_node("fallback_node", fallback_node)
         self.graph.add_node("check_availability_node", check_availability_node)
-        self.graph.add_node("book_appointment_node", book_appointment_node) 
+        self.graph.add_node("book_appointment_node", book_appointment_node)
 
         # Instanciar dependências para as Tools e LLM
         self.llm_service = LLMFactory.create_llm_service("openai")
 
         # Novos nós para Tools
         tool_calling_agent_func = create_tool_calling_agent_node(
-            llm_service=self.llm_service, 
-            medical_api_tools=self.medical_api_tools
+            llm_service=self.llm_service, medical_api_tools=self.medical_api_tools
         )
         self.graph.add_node(AGENT_TOOL_CALLER_NODE_NAME, tool_calling_agent_func)
 
@@ -97,7 +115,6 @@ class MessageAgentBuilder:
         )
         self.graph.add_node(EXECUTE_MEDICAL_TOOLS_NODE_NAME, tool_executor_func)
 
-
     def _add_edges(self):
         """
         Constroi as arestas do agente de mensagem
@@ -105,7 +122,7 @@ class MessageAgentBuilder:
         # Roteamento inicial do orquestrador
         self.graph.add_conditional_edges(
             "orquestrator_node",
-            self.router.route_orquestrator, 
+            self.router.route_orquestrator,
             {
                 "scheduling_node": "scheduling_node",
                 "scheduling_info_node": "scheduling_info_node",
@@ -113,10 +130,10 @@ class MessageAgentBuilder:
                 "greeting_node": "greeting_node",
                 "farewell_node": "farewell_node",
                 "other_node": "other_node",
-                AGENT_TOOL_CALLER_NODE_NAME: AGENT_TOOL_CALLER_NODE_NAME, 
+                AGENT_TOOL_CALLER_NODE_NAME: AGENT_TOOL_CALLER_NODE_NAME,
                 "fallback_node": "fallback_node",
                 "book_appointment_node": "book_appointment_node",
-            }
+            },
         )
 
         # Fluxo das Tools
@@ -127,12 +144,13 @@ class MessageAgentBuilder:
                 EXECUTE_MEDICAL_TOOLS_NODE_NAME: EXECUTE_MEDICAL_TOOLS_NODE_NAME,
                 "END": END,
                 "fallback_node": "fallback_node",
-                "validate_and_confirm_node": "validate_and_confirm_node"  
-            }
+                "validate_and_confirm_node": "validate_and_confirm_node",
+            },
         )
 
-        self.graph.add_edge(EXECUTE_MEDICAL_TOOLS_NODE_NAME, AGENT_TOOL_CALLER_NODE_NAME)
-
+        self.graph.add_edge(
+            EXECUTE_MEDICAL_TOOLS_NODE_NAME, AGENT_TOOL_CALLER_NODE_NAME
+        )
 
         self.graph.add_edge("scheduling_node", "collection_node")
         self.graph.add_edge("collection_node", "clarification_node")
@@ -144,8 +162,8 @@ class MessageAgentBuilder:
                 "check_completeness": "check_completeness_node",
                 "clarification": "clarification_node",
                 "clarification_node": "clarification_node",
-                "check_availability_node": "check_availability_node"
-            }
+                "check_availability_node": "check_availability_node",
+            },
         )
 
         self.graph.add_conditional_edges(
@@ -153,8 +171,8 @@ class MessageAgentBuilder:
             self.router.route_after_completeness_check,
             {
                 "clarification_node": "clarification_node",
-                "validate_and_confirm_node": "validate_and_confirm_node" 
-            }
+                "validate_and_confirm_node": "validate_and_confirm_node",
+            },
         )
 
         self.graph.add_conditional_edges(
@@ -162,37 +180,34 @@ class MessageAgentBuilder:
             lambda state: state.get("next_step", "clarification_node"),
             {
                 "awaiting_final_confirmation": END,
-                "clarification_node": "clarification_node"
-            }
-
+                "clarification_node": "clarification_node",
+            },
         )
-
 
         self.graph.add_conditional_edges(
             "final_confirmation_node",
-            lambda state: state.get("next_step", "completed"), 
+            lambda state: state.get("next_step", "completed"),
             {
                 # ALTERAÇÃO AQUI: Em vez de END, vai para a verificação de agenda!
-                "appointment_confirmed": "check_availability_node", 
+                "appointment_confirmed": "check_availability_node",
                 "awaiting_correction": END,
                 "awaiting_final_confirmation": END,
-                "completed": END 
-            }
+                "completed": END,
+            },
         )
 
         self.graph.add_edge("check_availability_node", END)
         self.graph.add_edge("book_appointment_node", END)
 
-
         self.graph.add_conditional_edges(
             "clarification_node",
-            self.router.decide_after_clarification, 
+            self.router.decide_after_clarification,
             {
                 "END_AWAITING_USER": END,
                 "PROCEED_TO_VALIDATION": "validate_and_confirm_node",
                 # "PROCEED_TO_VALIDATION": END,
                 "DEFAULT_END": END,
-            }
+            },
         )
 
         # Nós finais simples
@@ -200,7 +215,6 @@ class MessageAgentBuilder:
         self.graph.add_edge("other_node", END)
         self.graph.add_edge("fallback_node", END)
         self.graph.add_edge("farewell_node", END)
-
 
     def build_agent(self):
         """
@@ -211,12 +225,18 @@ class MessageAgentBuilder:
             print(self._compiled_agent.get_graph().draw_mermaid())
             print("---------------------------------")
         except Exception as e:
-            print(f"Erro ao gerar diagrama Mermaid: {e} (Pode precisar de `pip install pygraphviz` ou `mermaid-cli`)")
+            print(
+                f"Erro ao gerar diagrama Mermaid: {e} (Pode precisar de `pip install pygraphviz` ou `mermaid-cli`)"
+            )
 
         return self._compiled_agent
 
+
 async def get_message_agent():
-    from app.infrastructure.persistence.mongodb_saver_checkpointer import MongoDBSaverCheckpointer
+    from app.infrastructure.persistence.mongodb_saver_checkpointer import (
+        MongoDBSaverCheckpointer,
+    )
+
     mongodb_provider = MongoDBSaverCheckpointer()
     actual_mongo_checkpointer = mongodb_provider.create_checkpoint()
 

@@ -7,7 +7,7 @@ from app.infrastructure.services.llm.openai_service import OpenAIService
 class LLMFactory:
     @staticmethod
     def create_llm_service(provider: str) -> ILLMService:
-        
+
         if provider == "openai":
             return OpenAIService()
         else:

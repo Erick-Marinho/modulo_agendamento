@@ -1,12 +1,28 @@
 from langchain_openai import ChatOpenAI
-from app.application.agents.prompts.classify_message_prompt import CLASSIFY_MESSAGE_TEMPLATE
-from app.application.agents.prompts.extract_scheduling_details_prompt import EXTRACT_SCHEDULING_DETAILS_TEMPLATE
-from app.application.agents.prompts.request_missing_info_prompt import REQUEST_MISSING_INFO_TEMPLATE
-from app.application.agents.prompts.generate_confirmation_prompt import GENERATE_CONFIRMATION_TEMPLATE
-from app.application.agents.prompts.generate_success_message_prompt import GENERATE_SUCCESS_MESSAGE_TEMPLATE
-from app.application.agents.prompts.generate_correction_request_prompt import GENERATE_CORRECTION_REQUEST_TEMPLATE
-from app.application.agents.prompts.generate_general_help_prompt import GENERATE_GENERAL_HELP_TEMPLATE
-from app.application.agents.prompts.classify_confirmation_response_prompt import CLASSIFY_CONFIRMATION_RESPONSE_TEMPLATE
+from app.application.agents.prompts.classify_message_prompt import (
+    CLASSIFY_MESSAGE_TEMPLATE,
+)
+from app.application.agents.prompts.extract_scheduling_details_prompt import (
+    EXTRACT_SCHEDULING_DETAILS_TEMPLATE,
+)
+from app.application.agents.prompts.request_missing_info_prompt import (
+    REQUEST_MISSING_INFO_TEMPLATE,
+)
+from app.application.agents.prompts.generate_confirmation_prompt import (
+    GENERATE_CONFIRMATION_TEMPLATE,
+)
+from app.application.agents.prompts.generate_success_message_prompt import (
+    GENERATE_SUCCESS_MESSAGE_TEMPLATE,
+)
+from app.application.agents.prompts.generate_correction_request_prompt import (
+    GENERATE_CORRECTION_REQUEST_TEMPLATE,
+)
+from app.application.agents.prompts.generate_general_help_prompt import (
+    GENERATE_GENERAL_HELP_TEMPLATE,
+)
+from app.application.agents.prompts.classify_confirmation_response_prompt import (
+    CLASSIFY_CONFIRMATION_RESPONSE_TEMPLATE,
+)
 from app.application.agents.prompts.translate_date_prompt import TRANSLATE_DATE_PROMPT
 from app.application.interfaces.illm_service import ILLMService
 from app.domain.sheduling_details import SchedulingDetails
@@ -18,12 +34,13 @@ import re
 
 logger = logging.getLogger(__name__)
 
+
 class OpenAIService(ILLMService):
     def __init__(self) -> None:
         self.client = ChatOpenAI(
             api_key=settings.OPENAI_API_KEY,
             model=settings.OPENAI_MODEL_NAME,
-            temperature=settings.OPENAI_TEMPERATURE    
+            temperature=settings.OPENAI_TEMPERATURE,
         )
 
     def classify_message(self, user_message: str) -> str:
@@ -33,7 +50,7 @@ class OpenAIService(ILLMService):
         - "cancelamento"
         - "reagendamento"
         - "outro"
-        
+
         """
         chain = CLASSIFY_MESSAGE_TEMPLATE | self.client
         try:
@@ -42,8 +59,10 @@ class OpenAIService(ILLMService):
         except Exception as e:
             logger.error(f"Erro ao classificar mensagem: {e}")
             return None
-    
-    def extract_scheduling_details(self, user_message: str) -> Optional[SchedulingDetails]:
+
+    def extract_scheduling_details(
+        self, user_message: str
+    ) -> Optional[SchedulingDetails]:
         parser = PydanticOutputParser(pydantic_object=SchedulingDetails)
         chain = EXTRACT_SCHEDULING_DETAILS_TEMPLATE | self.client | parser
         try:
@@ -52,7 +71,7 @@ class OpenAIService(ILLMService):
         except Exception as e:
             logger.error(f"Erro ao extrair detalhes do agendamento: {e}")
             return None
-    
+
     def generate_clarification_question(
         self,
         service_type: str,
@@ -88,7 +107,7 @@ class OpenAIService(ILLMService):
         except Exception as e:
             logger.error(f"Erro ao gerar pergunta de esclarecimento: {e}")
             return None
-    
+
     def generate_confirmation_message(self, details: SchedulingDetails) -> str:
         """
         Gera uma mensagem de confirmação dos dados de agendamento.
@@ -108,7 +127,7 @@ class OpenAIService(ILLMService):
         except Exception as e:
             logger.error(f"Erro ao gerar mensagem de confirmação: {e}")
             return None
-    
+
     def generate_success_message(self) -> str:
         """
         Gera uma mensagem de sucesso após confirmação do agendamento.
@@ -120,7 +139,7 @@ class OpenAIService(ILLMService):
         except Exception as e:
             logger.error(f"Erro ao gerar mensagem de sucesso: {e}")
             return "Dados confirmados com sucesso!"
-        
+
     def generate_correction_request_message(self) -> str:
         """
         Gera uma mensagem solicitando correção de dados.
@@ -143,7 +162,9 @@ class OpenAIService(ILLMService):
             return llm_response.content
         except Exception as e:
             logger.error(f"Erro ao gerar mensagem de ajuda: {e}")
-            return "Posso ajudar com agendamentos. Informe profissional, data e horário."
+            return (
+                "Posso ajudar com agendamentos. Informe profissional, data e horário."
+            )
 
     def generate_unclear_response_message(self) -> str:
         """
@@ -193,7 +214,7 @@ class OpenAIService(ILLMService):
         except Exception as e:
             logger.error(f"Erro ao gerar mensagem de fallback: {e}")
             return "Não entendi bem. Pode tentar novamente?"
-    
+
     def generate_confirmation_message(self, details: SchedulingDetails) -> str:
         """
         Gera uma mensagem de confirmação dos dados de agendamento.
@@ -222,24 +243,29 @@ class OpenAIService(ILLMService):
         try:
             llm_response = chain.invoke({"user_response": user_response})
             classification = llm_response.content.strip().lower()
-            
-            valid_categories = ["confirmed", "simple_rejection", "correction_with_data", "unclear"]
+
+            valid_categories = [
+                "confirmed",
+                "simple_rejection",
+                "correction_with_data",
+                "unclear",
+            ]
             if classification in valid_categories:
-                logger.info(f"Classificação válida: '{classification}' para '{user_response}'")
+                logger.info(
+                    f"Classificação válida: '{classification}' para '{user_response}'"
+                )
                 return classification
             else:
-                logger.warning(f"Classificação inválida do LLM: '{classification}'. Usando fallback.")
+                logger.warning(
+                    f"Classificação inválida do LLM: '{classification}'. Usando fallback."
+                )
                 return "unclear"
-                
+
         except Exception as e:
             logger.error(f"Erro ao classificar resposta de confirmação: {e}")
             return "unclear"
-        
-    def translate_natural_date(
-        self,
-        user_preference: str,
-        current_date: str
-    ) -> str:
+
+    def translate_natural_date(self, user_preference: str, current_date: str) -> str:
         """
         Traduz a data natural do usuário usando o LLM.
         """
@@ -253,11 +279,18 @@ class OpenAIService(ILLMService):
             translated_date = llm_response.content.strip()
 
             # Validação simples de formato (YYYY-MM-DD) ou a string de erro
-            if re.match(r'^\d{4}-\d{2}-\d{2}$', translated_date) or translated_date == "invalid_date":
-                logger.info(f"LLM traduziu '{user_preference}' para '{translated_date}'")
+            if (
+                re.match(r"^\d{4}-\d{2}-\d{2}$", translated_date)
+                or translated_date == "invalid_date"
+            ):
+                logger.info(
+                    f"LLM traduziu '{user_preference}' para '{translated_date}'"
+                )
                 return translated_date
 
-            logger.warning(f"LLM retornou formato de data inesperado: '{translated_date}'")
+            logger.warning(
+                f"LLM retornou formato de data inesperado: '{translated_date}'"
+            )
             return "invalid_date"
 
         except Exception as e:

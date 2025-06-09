@@ -7,10 +7,13 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def _format_conversation_history_for_prompt(messages: List[BaseMessage], max_messages: int = 5) -> str:
+
+def _format_conversation_history_for_prompt(
+    messages: List[BaseMessage], max_messages: int = 5
+) -> str:
     if not messages:
         return "Nenhuma conversa ainda"
-    
+
     recent_messages = messages[-max_messages:]
 
     formatted_history = []
@@ -21,27 +24,34 @@ def _format_conversation_history_for_prompt(messages: List[BaseMessage], max_mes
 
     return "\n".join(formatted_history)
 
+
 def collection_node(state: MessageAgentState) -> MessageAgentState:
     """
     Nó responsável por coletar os detalhes do agendamento da mensagem do usuário,
     utilizando o ILLMService.
     """
-    
+
     logger.info("Iniciando coleta de detalhes do agendamento")
     all_messages: List[BaseMessage] = state.get("messages", [])
 
     if not all_messages:
-        logger.error("Não foi possível coletar os detalhes do agendamento. Mensagem do usuário não encontrada.")
+        logger.error(
+            "Não foi possível coletar os detalhes do agendamento. Mensagem do usuário não encontrada."
+        )
         return {**state, "extracted_scheduling_details": None}
 
-    conversation_hitory_str = _format_conversation_history_for_prompt(all_messages, max_messages=5)
+    conversation_hitory_str = _format_conversation_history_for_prompt(
+        all_messages, max_messages=5
+    )
     logger.info(f"Histórico formatado para extração:\n{conversation_hitory_str}")
-    
+
     try:
         llm_type = "openai"
         llm_service = LLMFactory.create_llm_service(llm_type)
 
-        extracted_data = llm_service.extract_scheduling_details(user_message=conversation_hitory_str)
+        extracted_data = llm_service.extract_scheduling_details(
+            user_message=conversation_hitory_str
+        )
 
         logger.info(f"Detalhes do agendamento extraídos: {extracted_data}")
 

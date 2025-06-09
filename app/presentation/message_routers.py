@@ -10,13 +10,15 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-async def get_message_service_dependency(agent = Depends(get_message_agent)):
+
+async def get_message_service_dependency(agent=Depends(get_message_agent)):
     return MessageService(agent=agent)
+
 
 @router.post("/", status_code=status.HTTP_200_OK)
 async def send_message(
-    message_request: MessageRequestPayload, 
-    message_service: MessageService = Depends(get_message_service_dependency)
+    message_request: MessageRequestPayload,
+    message_service: MessageService = Depends(get_message_service_dependency),
 ):
     """
     Endpoint para processar a mensagem recebida e disparar o envio da resposta
@@ -32,19 +34,19 @@ async def send_message(
         if "error" in n8n_result:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Falha ao enviar a resposta para o webhook: {n8n_result.get('details', 'Erro desconhecido')}"
+                detail=f"Falha ao enviar a resposta para o webhook: {n8n_result.get('details', 'Erro desconhecido')}",
             )
 
         # Retornamos o status do envio para o N8N como sucesso
         return {"status": "message_processed_and_sent", "n8n_response": n8n_result}
-    
+
     except HTTPException:
         # Re-lança exceções HTTP que já foram tratadas
         raise
-    
+
     except Exception as e:
         logger.error(f"Erro inesperado no endpoint /message: {e}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-            detail="Ocorreu um erro interno ao processar a mensagem."
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Ocorreu um erro interno ao processar a mensagem.",
         )

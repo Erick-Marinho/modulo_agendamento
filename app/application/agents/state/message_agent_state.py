@@ -8,6 +8,7 @@ class MessageAgentState(TypedDict):
     """
     Representa o estado do agente de mensagem
     """
+
     # Mensagens da conversa
     messages: Annotated[list[BaseMessage], add_messages]
 

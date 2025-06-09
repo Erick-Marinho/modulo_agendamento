@@ -6,10 +6,12 @@ from app.infrastructure.persistence.ISaveCheckpoint import SaveCheckpointInterfa
 
 logger = logging.getLogger(__name__)
 
+
 class MemorySaverCheckpointer(SaveCheckpointInterface):
     """
     Checkpointer para salvar o estado do agente em memória
     """
+
     def __init__(self):
         """
         Inicializa o MemorySaverCheckpointer
