@@ -59,10 +59,16 @@ def create_tool_calling_agent_node(
                 "\n- Data preferida: {date_preference}"
                 "\n- Turno preferido: {time_preference}"
                 "\n\nINSTRUÇÕES IMPORTANTES:"
+                "\n- Se perguntarem 'quais especialidades': use get_available_specialties"
+                "\n- Se perguntarem 'quais profissionais' SEM especificar especialidade: use get_available_specialties e explique que precisa saber a especialidade para listar os profissionais"
+                "\n- Se perguntarem 'quais profissionais de [especialidade específica]': use get_professionals_by_specialty"
+                "\n- Se perguntarem sobre agenda/datas/horários: use check_availability"
+                "\n\nCOMPORTAMENTO ESPERADO:"
+                "\n- Quando alguém perguntar 'quais profissionais?' ou 'que médicos vocês têm?', use get_available_specialties e responda: 'Para que eu possa fornecer a lista de profissionais, preciso saber qual especialidade você está procurando. Veja as especialidades disponíveis: [lista]. Qual especialidade você deseja?'"
+                "\n\nINSTRUÇÕES COMPLEMENTARES:"
                 "\n- Se o contexto tem uma especialidade definida mas não tem profissional, use automaticamente 'get_professionals_by_specialty' com a especialidade do contexto."
                 "\n- Se o usuário perguntar sobre datas/horários disponíveis e você já tem o nome do profissional no contexto, use 'check_availability' com essas informações."
                 "\n- Se o contexto tem informações relevantes (profissional, data, turno), sempre passe elas para as tools."
-                "\n- Use 'get_available_specialties' quando perguntarem quais especialidades a clínica tem."
                 "\n- Seja proativo: quando souber a especialidade, busque automaticamente os profissionais."
                 "\n\nSe uma ferramenta for chamada, você receberá o resultado dela e então deverá formular uma resposta final para o usuário com base nesse resultado.",
             ),

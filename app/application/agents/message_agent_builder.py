@@ -164,6 +164,7 @@ class MessageAgentBuilder:
                 "clarification": "clarification_node",
                 "clarification_node": "clarification_node",
                 "check_availability_node": "check_availability_node",
+                AGENT_TOOL_CALLER_NODE_NAME: AGENT_TOOL_CALLER_NODE_NAME,
             },
         )
 

@@ -20,6 +20,76 @@ def scheduling_info_node(state: MessageAgentState) -> MessageAgentState:
 
     logger.info("--- Executando nó scheduling_info ---")
 
+    # 🆕 DETECÇÃO ESPECÍFICA MELHORADA: Perguntas sobre especialidades/profissionais
+    messages = state.get("messages", [])
+    last_message = messages[-1].content.lower().strip() if messages else ""
+
+    # Palavras-chave expandidas para detectar perguntas sobre API
+    api_query_patterns = [
+        # Padrões diretos
+        "quais especialidades",
+        "que especialidades",
+        "quais as especialidades",
+        "quais são as especialidades",
+        "especialidades disponíveis",
+        "especialidades vocês tem",
+        "especialidades tem",
+        # Profissionais
+        "quais profissionais",
+        "que profissionais",
+        "quais são os profissionais",
+        "profissionais disponíveis",
+        "profissionais vocês tem",
+        "profissionais tem",
+        # Médicos
+        "quais médicos",
+        "que médicos",
+        "médicos disponíveis",
+        "médicos vocês tem",
+        "médicos tem",
+        # Variações com "tem"
+        "tem cardiologista",
+        "tem pediatra",
+        "tem ortopedista",
+        "tem especialista",
+        "tem doutor",
+        "tem doutora",
+        # Comandos de listagem
+        "lista de especialidades",
+        "lista de profissionais",
+        "lista de médicos",
+        "mostrar especialidades",
+        "mostrar profissionais",
+        "ver especialidades",
+        "ver profissionais",
+        # Variações simples
+        "especialidades?",
+        "profissionais?",
+        "médicos?",
+    ]
+
+    # Detectar se é uma pergunta sobre API
+    is_api_query = any(pattern in last_message for pattern in api_query_patterns)
+
+    # Detecção adicional: frases que começam com palavras interrogativas
+    question_words = ["quais", "que", "qual", "tem", "existe", "há"]
+    medical_terms = ["especialidade", "profissional", "médico", "doutor", "doutora"]
+
+    starts_with_question = any(last_message.startswith(word) for word in question_words)
+    contains_medical_term = any(term in last_message for term in medical_terms)
+
+    if is_api_query or (starts_with_question and contains_medical_term):
+        logger.info(
+            f"🎯 DETECTADO: Pergunta sobre especialidades/profissionais: '{last_message}'"
+        )
+        logger.info("Redirecionando para agent_tool_caller para buscar informações")
+
+        return {
+            **state,
+            "next_step": "agent_tool_caller",
+            "conversation_context": "api_interaction",
+        }
+
     extracted_details = state.get("extracted_scheduling_details")
 
     if extracted_details is None:

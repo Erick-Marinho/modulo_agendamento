@@ -16,32 +16,45 @@ CLASSIFY_MESSAGE_TEMPLATE = ChatPromptTemplate.from_template(
     - "other": Perguntas gerais sobre a clínica, endereço, funcionamento que NÃO sejam sobre listagem de especialidades ou profissionais.
     - "unclear": Mensagens confusas ou incompreensíveis.
 
-    DIRETRIZES:
-    1. Se o usuário está claramente iniciando um agendamento: "scheduling"
-    2. Se está respondendo a uma pergunta sobre agendamento: "scheduling_info"  
-    3. Se está pedindo para listar especialidades ou profissionais: "api_query"
-    4. Se responde com apenas uma especialidade (como "Cardiologia") após ver uma lista: "specialty_selection"
-    5. Seja específico - não confunda saudação com início de agendamento.
-    6. Na dúvida entre "scheduling" e "scheduling_info", escolha "scheduling".
-    7. Se a pergunta é sobre "quais especialidades tem?" ou "liste os médicos de X especialidade", use "api_query".
+    ⚠️ **REGRA CRÍTICA**: Qualquer pergunta que contenha as palavras "quais", "que", "qual", "tem", "lista", "mostrar", "ver" seguida de "especialidades", "profissionais", "médicos", "doutor", "doutora" DEVE ser classificada como "api_query".
 
-    EXEMPLOS:
+    DIRETRIZES DE PRIORIDADE:
+    1. **PRIORIDADE MÁXIMA**: Perguntas sobre listar/mostrar especialidades ou profissionais → "api_query"
+    2. Se o usuário está claramente iniciando um agendamento → "scheduling"
+    3. Se está respondendo a uma pergunta sobre agendamento → "scheduling_info"
+    4. Se responde com apenas uma especialidade após ver uma lista → "specialty_selection"
+    5. Cumprimentos → "greeting" 
+    6. Despedidas → "farewell"
+    7. Outras perguntas sobre a clínica → "other"
+    8. Mensagens confusas → "unclear"
+
+    🎯 **CASOS OBRIGATÓRIOS PARA api_query:**
+    - "quais especialidades" → api_query
+    - "que especialidades" → api_query  
+    - "quais as especialidades" → api_query
+    - "quais são os profissionais" → api_query
+    - "que profissionais" → api_query
+    - "quais profissionais" → api_query
+    - "quais médicos" → api_query
+    - "que médicos" → api_query
+    - "tem cardiologista" → api_query
+    - "tem especialista" → api_query
+    - "lista de especialidades" → api_query
+    - "mostrar especialidades" → api_query
+    - "ver especialidades" → api_query
+    - "mostrar profissionais" → api_query
+    - "ver profissionais" → api_query
+    
+    EXEMPLOS CLAROS:
     "Quero marcar uma consulta" → scheduling
     "Preciso agendar com cardiologista" → scheduling
-    "Dr. Silva" (resposta a pergunta sobre profissional) → scheduling_info
-    "Amanhã às 14h" (resposta sobre horário) → scheduling_info
-    "amanha a tarde" (resposta sobre data e turno) → scheduling_info
-    "Pediatria" (resposta sobre especialidade) → scheduling_info
-    "Cardiologia" (após ver lista de especialidades) → specialty_selection
-    "Ortopedia" (após ver lista de especialidades) → specialty_selection
-    "Quais especialidades vocês atendem?" → api_query
-    "Tem cardiologista?" → api_query
-    "Quais médicos são da área de pediatria?" → api_query
-    "Gostaria de saber os profissionais de cardiologia" → api_query
-    "Olá, bom dia!" → greeting
-    "Tchau, obrigado!" → farewell
-    "Qual o endereço da clínica?" → other
-    "asdfghjkl" → unclear
+    "quais são os profissionais?" → api_query ⚠️
+    "que especialidades vocês tem?" → api_query ⚠️
+    "Dr. Silva" (como resposta) → scheduling_info
+    "Amanhã às 14h" (como resposta) → scheduling_info
+    "Cardiologia" (após ver lista) → specialty_selection
+    "Olá!" → greeting
+    "Qual o endereço?" → other
 
     Mensagem do usuário: {user_query}
 
