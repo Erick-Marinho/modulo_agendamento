@@ -181,21 +181,22 @@ async def _get_professional_id_by_name(
 # Nova Tool para checar disponibilidade
 def create_check_availability_tool(medical_repository: IMedicalRepository, api_client: AppHealthAPIClient):
     @tool
-    async def check_availability(professional_name: str, month: Optional[int] = None, year: Optional[int] = None) -> str:
+    async def check_availability(professional_name: str = None, date: str = None, time_period: str = None) -> str:
         """
         Verifica as datas e horários disponíveis para um profissional específico.
         Use esta tool quando o usuário perguntar sobre a agenda, datas ou horários disponíveis para um médico.
-        É OBRIGATÓRIO ter o nome do profissional para usar esta tool.
         Args:
-            professional_name (str): O nome do profissional de saúde.
-            month (int, optional): O mês para verificar a disponibilidade (e.g., 6 para Junho). Padrão para o mês atual.
-            year (int, optional): O ano para verificar a disponibilidade (e.g., 2025). Padrão para o ano atual.
+            professional_name (str, optional): O nome do profissional de saúde. Se não fornecido, será obtido do contexto.
+            date (str, optional): Data específica no formato 'YYYY-MM-DD' ou descrição natural como 'dia 13'.
+            time_period (str, optional): Período preferido - 'manha' ou 'tarde'.
         """
-        logger.info(f"Tool 'check_availability' foi chamada para o profissional: '{professional_name}'")
+        logger.info(f"Tool 'check_availability' foi chamada com: professional_name='{professional_name}', date='{date}', time_period='{time_period}'")
+        
+        # Se não tem professional_name, retorna erro claro
         if not professional_name:
             return ToolResult(
                 status=ToolStatus.VALIDATION_ERROR,
-                message="O nome do profissional é obrigatório para verificar a disponibilidade."
+                message="Para verificar a disponibilidade, preciso saber qual profissional você escolheu. Poderia me informar o nome?"
             ).message
 
         try:
@@ -207,14 +208,64 @@ def create_check_availability_tool(medical_repository: IMedicalRepository, api_c
                 ).message
 
             now = datetime.now()
-            check_month = month or now.month
-            check_year = year or now.year
-
-            available_dates_raw = await api_client.get_available_dates_from_api(professional_id, check_month, check_year)
+            
+            # Se uma data específica foi fornecida, tenta convertê-la
+            if date:
+                # Lógica simples para "dia X" - assume mês atual
+                if date.lower().startswith("dia "):
+                    try:
+                        day = int(date.lower().replace("dia ", "").strip())
+                        target_date = f"{now.year:04d}-{now.month:02d}-{day:02d}"
+                        
+                        # Verifica horários para a data específica
+                        available_times_raw = await api_client.get_available_times_from_api(professional_id, target_date)
+                        if not available_times_raw:
+                            return ToolResult(
+                                status=ToolStatus.NOT_FOUND,
+                                message=f"Não encontrei horários disponíveis para {professional_name} no {date}. Gostaria que eu verifique outras datas próximas?"
+                            ).message
+                        
+                        # Filtrar por período se especificado
+                        if time_period:
+                            filtered_times = []
+                            for slot in available_times_raw:
+                                start_hour = int(slot["horaInicio"].split(":")[0])
+                                if time_period == "manha" and 5 <= start_hour < 12:
+                                    filtered_times.append(slot["horaInicio"])
+                                elif time_period == "tarde" and 12 <= start_hour < 18:
+                                    filtered_times.append(slot["horaInicio"])
+                            available_times = filtered_times
+                        else:
+                            available_times = [slot["horaInicio"] for slot in available_times_raw]
+                        
+                        if not available_times:
+                            period_msg = f" no período da {time_period}" if time_period else ""
+                            return ToolResult(
+                                status=ToolStatus.NOT_FOUND,
+                                message=f"Não encontrei horários disponíveis para {professional_name} no {date}{period_msg}. Posso verificar outros períodos ou datas?"
+                            ).message
+                        
+                        times_str = ", ".join([t[:5] for t in available_times])
+                        period_msg = f" no período da {time_period}" if time_period else ""
+                        formatted_date = f"{day:02d}/{now.month:02d}/{now.year}"
+                        
+                        response_message = f"Encontrei os seguintes horários disponíveis para {professional_name} no dia {formatted_date}{period_msg}: {times_str}.\n\nQual horário você prefere?"
+                        
+                        return ToolResult(
+                            status=ToolStatus.SUCCESS,
+                            message=response_message
+                        ).message
+                        
+                    except ValueError:
+                        # Se não conseguir extrair o dia, continua com a busca geral
+                        pass
+            
+            # Busca geral - mostra próximas datas disponíveis
+            available_dates_raw = await api_client.get_available_dates_from_api(professional_id, now.month, now.year)
             if not available_dates_raw:
                 return ToolResult(
                     status=ToolStatus.NOT_FOUND,
-                    message=f"Não encontrei datas disponíveis para {professional_name} em {check_month}/{check_year}. Gostaria de tentar outro mês?"
+                    message=f"Não encontrei datas disponíveis para {professional_name} neste mês. Gostaria de verificar o próximo mês?"
                 ).message
 
             # Limitar a quantidade de datas para não poluir a resposta
@@ -222,7 +273,7 @@ def create_check_availability_tool(medical_repository: IMedicalRepository, api_c
             formatted_dates = [datetime.strptime(d, "%Y-%m-%d").strftime("%d/%m/%Y") for d in dates_to_show]
 
             response_message = f"Encontrei as seguintes datas disponíveis para {professional_name}:\n- " + "\n- ".join(formatted_dates)
-            response_message += f"\n\nSe alguma dessas datas for boa para você, me diga qual e posso verificar os horários."
+            response_message += f"\n\nQual data você prefere? Posso verificar os horários disponíveis."
 
             return ToolResult(
                 status=ToolStatus.SUCCESS,

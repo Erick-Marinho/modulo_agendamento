@@ -131,6 +131,7 @@ class MessageAgentBuilder:
                 "greeting_node": "greeting_node",
                 "farewell_node": "farewell_node",
                 "other_node": "other_node",
+                "clarification_node": "clarification_node",
                 AGENT_TOOL_CALLER_NODE_NAME: AGENT_TOOL_CALLER_NODE_NAME,
                 "fallback_node": "fallback_node",
                 "book_appointment_node": "book_appointment_node",

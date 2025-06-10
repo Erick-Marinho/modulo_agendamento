@@ -25,19 +25,79 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
     llm_service = LLMFactory.create_llm_service("openai")
     new_details = llm_service.extract_scheduling_details(conversation_history_str)
 
-    updated_details = _merge_scheduling_details(existing_details, new_details) # Igualmente, mova a função _merge_scheduling_details
+    updated_details = _merge_scheduling_details(existing_details, new_details)
 
     # Atualiza o estado imediatamente
     state["extracted_scheduling_details"] = updated_details
     logger.info(f"Orquestrador atualizou os detalhes: {updated_details}")
 
-    # Agora, com o estado atualizado, vamos decidir para onde ir.
-    if updated_details and updated_details.professional_name and not updated_details.date_preference:
-        logger.info(f"Profissional '{updated_details.professional_name}' definido, mas data não. Direcionando para `api_query` para usar `check_availability`.")
+    # PRIMEIRA PRIORIDADE: Detectar menção de especialidade e ser proativo
+    last_message = messages[-1].content.lower().strip() if messages else ""
+    
+    # Lista expandida de especialidades e suas variações
+    specialty_keywords = [
+        'cardiologia', 'cardiologista', 'cardio',
+        'pediatria', 'pediatra', 'pedra',
+        'ortopedia', 'ortopedista', 'orto',
+        'clínico geral', 'clinico geral', 'clínico', 'clinico',
+        'ginecologia', 'ginecologista', 'gineco',
+        'dermatologia', 'dermatologista', 'dermato',
+        'neurologia', 'neurologista', 'neuro',
+        'psiquiatria', 'psiquiatra'
+    ]
+    
+    # Se o usuário mencionou uma especialidade E o sistema extraiu uma especialidade, ser proativo
+    if (updated_details and updated_details.specialty and 
+        not updated_details.professional_name and
+        any(keyword in last_message for keyword in specialty_keywords)):
+        logger.info(f"🎯 DETECTADO: Usuário mencionou especialidade '{last_message}' -> Extraído: '{updated_details.specialty}'. Sendo proativo!")
         return {
             **state,
-            "next_step": AGENT_TOOL_CALLER_NODE_NAME, # Nome do nó que chama as tools
-            "conversation_context": "api_interaction",
+            "next_step": AGENT_TOOL_CALLER_NODE_NAME,
+            "conversation_context": "specialty_selection",
+        }
+
+    # SEGUNDA PRIORIDADE: Verificar disponibilidade
+    if any(keyword in last_message for keyword in ["disponível", "datas", "horários", "agenda", "disponibilidade", "livre", "vago", "quando"]):
+        if updated_details and updated_details.professional_name:
+            logger.info(f"Usuário perguntou sobre disponibilidade para '{updated_details.professional_name}'. Direcionando para tool.")
+            return {
+                **state,
+                "next_step": AGENT_TOOL_CALLER_NODE_NAME,
+                "conversation_context": "checking_availability",
+            }
+        else:
+            logger.info("Usuário perguntou sobre disponibilidade mas não definiu profissional. Direcionando para esclarecimento.")
+            return {
+                **state,
+                "next_step": "clarification",
+                "missing_fields": ["nome do profissional"],
+            }
+
+    # TERCEIRA PRIORIDADE: Calcular campos faltantes apenas se não detectou especialidade
+    calculated_missing_fields = []
+    if updated_details:
+        if not updated_details.professional_name and not updated_details.specialty:
+            calculated_missing_fields.append("nome do profissional ou especialidade")
+        elif not updated_details.professional_name and updated_details.specialty:
+            # Se tem especialidade mas não tem profissional, NÃO adiciona aos campos faltantes
+            # porque vamos buscar os profissionais automaticamente
+            pass
+        if not updated_details.date_preference:
+            calculated_missing_fields.append("data de preferência")
+        if not updated_details.time_preference:
+            calculated_missing_fields.append("turno de preferência")
+        if not updated_details.service_type:
+            calculated_missing_fields.append("tipo de serviço")
+
+    # Se extraiu informações de agendamento e faltam campos críticos, vai para clarification
+    if updated_details and updated_details.service_type and calculated_missing_fields:
+        logger.info(f"Agendamento detectado com campos faltando: {calculated_missing_fields}. Direcionando para clarification.")
+        return {
+            **state,
+            "missing_fields": calculated_missing_fields,
+            "next_step": "clarification",
+            "conversation_context": "scheduling_flow",
         }
 
     current_next_step = state.get("next_step", "")
@@ -72,11 +132,10 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
         return {**state, "next_step": "scheduling_info"}
 
     # NOVA LÓGICA: Verificar se estamos no meio de um fluxo de agendamento
-    extracted_details = state.get("extracted_scheduling_details")
     missing_fields = state.get("missing_fields", [])
     
-    # Se temos detalhes extraídos e campos faltando, provavelmente o usuário está respondendo
-    if extracted_details and missing_fields:
+    # CORRIGIDO: usar updated_details em vez de extracted_details
+    if updated_details and missing_fields:
         logger.info(
             f"Contexto de agendamento detectado com campos faltando: {missing_fields}. "
             "Tratando resposta como scheduling_info."

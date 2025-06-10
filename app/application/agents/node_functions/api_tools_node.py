@@ -51,12 +51,18 @@ def create_tool_calling_agent_node(
         [
             (
                 "system",
-                "Você é um assistente prestativo de uma clínica médica. Você tem acesso a ferramentas para buscar informações sobre especialidades médicas, profissionais e datas disponíveis na agenda deles. "
+                "Você é um assistente prestativo de uma clínica médica. Você tem acesso a ferramentas para buscar informações sobre especialidades médicas, profissionais e datas disponíveis na agenda deles."
+                "\n\nCONTEXTO ATUAL DO AGENDAMENTO:"
+                "\n- Profissional: {professional_name}"
+                "\n- Especialidade: {specialty}"
+                "\n- Data preferida: {date_preference}"
+                "\n- Turno preferido: {time_preference}"
                 "\n\nINSTRUÇÕES IMPORTANTES:"
-                "\n- Se o usuário mencionar APENAS um nome de especialidade (como 'Cardiologia', 'Pediatria', 'Ortopedia'), automaticamente use a ferramenta 'get_professionals_by_specialty' para mostrar os profissionais dessa especialidade."
-                "\n- Use a ferramenta 'check_availability' quando o usuário perguntar sobre datas ou horários para um profissional específico."
+                "\n- Se o contexto tem uma especialidade definida mas não tem profissional, use automaticamente 'get_professionals_by_specialty' com a especialidade do contexto."
+                "\n- Se o usuário perguntar sobre datas/horários disponíveis e você já tem o nome do profissional no contexto, use 'check_availability' com essas informações."
+                "\n- Se o contexto tem informações relevantes (profissional, data, turno), sempre passe elas para as tools."
                 "\n- Use 'get_available_specialties' quando perguntarem quais especialidades a clínica tem."
-                "\n- Seja proativo: se o usuário escolhe uma especialidade, mostre automaticamente os profissionais disponíveis sem perguntar se ele quer ver."
+                "\n- Seja proativo: quando souber a especialidade, busque automaticamente os profissionais."
                 "\n\nSe uma ferramenta for chamada, você receberá o resultado dela e então deverá formular uma resposta final para o usuário com base nesse resultado.",
             ),
             MessagesPlaceholder(variable_name="messages"),
@@ -69,6 +75,44 @@ def create_tool_calling_agent_node(
         logger.info(
             f"--- Executando nó agente de chamada de ferramenta (agent_node_func) ---"
         )
+
+        extracted_details = state.get("extracted_scheduling_details")
+        conversation_context = state.get("conversation_context")
+        
+        context_info = {
+            "professional_name": extracted_details.professional_name if extracted_details else "Não definido",
+            "specialty": extracted_details.specialty if extracted_details else "Não definida", 
+            "date_preference": extracted_details.date_preference if extracted_details else "Não definida",
+            "time_preference": extracted_details.time_preference if extracted_details else "Não definido"
+        }
+        
+        logger.info(f"Contexto atual para tools: {context_info}")
+        logger.info(f"Conversation context: {conversation_context}")
+
+        if conversation_context == "specialty_selection" and extracted_details and extracted_details.specialty:
+            logger.info(f"🎯 AUTOMÁTICO: Chamando get_professionals_by_specialty para '{extracted_details.specialty}'")
+            try:
+                tool_result = await medical_api_tools.get_professionals_by_specialty.ainvoke(
+                    {"specialty_name": extracted_details.specialty}
+                )
+                logger.info(f"Tool result: {tool_result}")
+                
+                ai_message = AIMessage(content=tool_result)
+                
+                return {
+                    "messages": state["messages"] + [ai_message],
+                    "next_step": "completed",
+                }
+                
+            except Exception as e:
+                logger.error(f"Erro ao chamar tool automaticamente: {e}", exc_info=True)
+                error_message = AIMessage(
+                    content=f"Desculpe, tive um problema ao buscar os profissionais de {extracted_details.specialty}. Você pode me dizer o nome de um profissional específico?"
+                )
+                return {
+                    "messages": state["messages"] + [error_message],
+                    "next_step": "completed",
+                }
 
         last_message = state["messages"][-1]
         if isinstance(last_message, ToolMessage):
@@ -85,7 +129,6 @@ def create_tool_calling_agent_node(
                 logger.info(
                     "Tool executada e todos os detalhes estão preenchidos. Avançando para validação."
                 )
-                # Cria uma mensagem de transição e define o próximo passo
                 ai_message = AIMessage(
                     content="Ok, encontrei as informações. Vamos confirmar os dados para o seu agendamento."
                 )
@@ -94,13 +137,29 @@ def create_tool_calling_agent_node(
                     "next_step": "validate_and_confirm",
                 }
 
-        # Lógica original para chamar o LLM
-        agent_inputs = {"messages": state["messages"]}
+        agent_inputs = {
+            "messages": state["messages"],
+            **context_info
+        }
 
         try:
             ai_response_or_tool_call: AIMessage = (
                 await tool_calling_agent_runnable.ainvoke(agent_inputs)
             )
+            
+            if ai_response_or_tool_call.tool_calls:
+                for tool_call in ai_response_or_tool_call.tool_calls:
+                    if tool_call["name"] == "check_availability" and extracted_details:
+                        args = tool_call["args"]
+                        if not args.get("professional_name") and extracted_details.professional_name:
+                            args["professional_name"] = extracted_details.professional_name
+                        if not args.get("date") and extracted_details.date_preference:
+                            args["date"] = extracted_details.date_preference  
+                        if not args.get("time_period") and extracted_details.time_preference:
+                            args["time_period"] = extracted_details.time_preference
+                        
+                        logger.info(f"Argumentos da tool check_availability enriquecidos: {args}")
+            
             new_messages = state["messages"] + [ai_response_or_tool_call]
 
             if ai_response_or_tool_call.tool_calls:
