@@ -1,10 +1,10 @@
 import logging
 
+from langchain_core.messages import BaseMessage, HumanMessage
+
 from app.application.agents.state.message_agent_state import MessageAgentState
-from app.infrastructure.services.llm.llm_factory import LLMFactory
-from langchain_core.messages import HumanMessage
 from app.domain.sheduling_details import SchedulingDetails
-from langchain_core.messages import BaseMessage
+from app.infrastructure.services.llm.llm_factory import LLMFactory
 
 logger = logging.getLogger(__name__)
 
@@ -18,16 +18,12 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
     logger.info(f"--- Executando nó orquestrador ---")
 
     messages = state.get("messages", [])
-    conversation_history_str = _format_conversation_history_for_prompt(
-        messages
-    )
+    conversation_history_str = _format_conversation_history_for_prompt(messages)
 
     existing_details = state.get("extracted_scheduling_details")
 
     llm_service = LLMFactory.create_llm_service("openai")
-    new_details = llm_service.extract_scheduling_details(
-        conversation_history_str
-    )
+    new_details = llm_service.extract_scheduling_details(conversation_history_str)
 
     updated_details = _merge_scheduling_details(existing_details, new_details)
 
@@ -37,6 +33,32 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
 
     # PRIMEIRA PRIORIDADE: Detectar menção de especialidade e ser proativo
     last_message = messages[-1].content.lower().strip() if messages else ""
+
+    # NOVA PRIORIDADE MÁXIMA: Detectar perguntas sobre informações da clínica
+    # Estas perguntas devem ter prioridade sobre qualquer fluxo de agendamento
+    clinic_info_keywords = [
+        "quais especialidades",
+        "que especialidades",
+        "especialidades disponíveis",
+        "especialidades que vocês têm",
+        "especialidades da clínica",
+        "quais médicos",
+        "que médicos",
+        "médicos disponíveis",
+        "profissionais disponíveis",
+        "quais profissionais",
+        "que profissionais",
+    ]
+
+    if any(keyword in last_message for keyword in clinic_info_keywords):
+        logger.info(
+            f"🔍 PRIORIDADE MÁXIMA: Usuário está perguntando sobre informações da clínica: '{last_message}'"
+        )
+        return {
+            **state,
+            "next_step": AGENT_TOOL_CALLER_NODE_NAME,
+            "conversation_context": "api_query",
+        }
 
     # Lista expandida de especialidades e suas variações
     specialty_keywords = [
@@ -118,16 +140,9 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
     # TERCEIRA PRIORIDADE: Calcular campos faltantes apenas se não detectou especialidade
     calculated_missing_fields = []
     if updated_details:
-        if (
-            not updated_details.professional_name
-            and not updated_details.specialty
-        ):
-            calculated_missing_fields.append(
-                "nome do profissional ou especialidade"
-            )
-        elif (
-            not updated_details.professional_name and updated_details.specialty
-        ):
+        if not updated_details.professional_name and not updated_details.specialty:
+            calculated_missing_fields.append("nome do profissional ou especialidade")
+        elif not updated_details.professional_name and updated_details.specialty:
             # Se tem especialidade mas não tem profissional, NÃO adiciona aos campos faltantes
             # porque vamos buscar os profissionais automaticamente
             pass
@@ -139,11 +154,7 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
             calculated_missing_fields.append("tipo de serviço")
 
     # Se extraiu informações de agendamento e faltam campos críticos, vai para clarification
-    if (
-        updated_details
-        and updated_details.service_type
-        and calculated_missing_fields
-    ):
+    if updated_details and updated_details.service_type and calculated_missing_fields:
         logger.info(
             f"Agendamento detectado com campos faltando: {calculated_missing_fields}. Direcionando para clarification."
         )
@@ -213,24 +224,18 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
         if state.get("message"):
             last_human_message_content = state.get("message")
         else:
-            logger.warning(
-                "Orquestrador: Nenhuma mensagem humana para classificar."
-            )
+            logger.warning("Orquestrador: Nenhuma mensagem humana para classificar.")
             return {
                 **state,
                 "next_step": "unclear",
                 "conversation_context": "system_error",
             }
 
-    logger.info(
-        f"Orquestrador classificando mensagem: '{last_human_message_content}'"
-    )
+    logger.info(f"Orquestrador classificando mensagem: '{last_human_message_content}'")
 
     try:
         llm_service = LLMFactory.create_llm_service("openai")
-        classification = llm_service.classify_message(
-            last_human_message_content
-        )
+        classification = llm_service.classify_message(last_human_message_content)
 
         classification = classification.strip().lower()
         logger.info(
@@ -283,9 +288,7 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
         }
 
     except Exception as e:
-        logger.error(
-            f"Erro ao classificar mensagem no orquestrador: {e}", exc_info=True
-        )
+        logger.error(f"Erro ao classificar mensagem no orquestrador: {e}", exc_info=True)
         return {
             **state,
             "next_step": "fallback_node",
