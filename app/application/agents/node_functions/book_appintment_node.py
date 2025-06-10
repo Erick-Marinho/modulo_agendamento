@@ -31,7 +31,7 @@ def _extract_time_from_message(message: str) -> str | None:
 def _extract_date_from_conversation(messages: List) -> str | None:
     """Extrai a data do agendamento das mensagens anteriores."""
     for msg in reversed(messages):
-        if hasattr(msg, 'content') and isinstance(msg.content, str):
+        if hasattr(msg, "content") and isinstance(msg.content, str):
             # Procura por data no formato DD/MM/YYYY
             date_match = re.search(r"(\d{2}/\d{2}/\d{4})", msg.content)
             if date_match:
@@ -51,7 +51,10 @@ async def _get_professional_id_by_name(
     """Busca o ID de um profissional pelo nome de forma flexível."""
     all_professionals = await repository.get_api_professionals()
     normalized_input_name = (
-        professional_name.lower().replace("dr.", "").replace("dra.", "").strip()
+        professional_name.lower()
+        .replace("dr.", "")
+        .replace("dra.", "")
+        .strip()
     )
     for prof in all_professionals:
         normalized_prof_name = (
@@ -62,7 +65,9 @@ async def _get_professional_id_by_name(
                 f"ID {prof.id} encontrado para o profissional '{professional_name}' (Match: '{prof.nome}')"
             )
             return prof.id
-    logger.warning(f"Nenhum ID encontrado para o profissional '{professional_name}'")
+    logger.warning(
+        f"Nenhum ID encontrado para o profissional '{professional_name}'"
+    )
     return None
 
 
@@ -74,7 +79,10 @@ async def _get_specialty_id_by_name(
         return None
     all_specialties = await repository.get_all_api_specialties()
     for spec in all_specialties:
-        if spec.especialidade.strip().lower() == specialty_name.strip().lower():
+        if (
+            spec.especialidade.strip().lower()
+            == specialty_name.strip().lower()
+        ):
             return spec.id
     return None
 
@@ -90,7 +98,9 @@ async def book_appointment_node(state: MessageAgentState) -> MessageAgentState:
     try:
         # 1. Validações iniciais
         if not details:
-            raise ValueError("Detalhes do agendamento não encontrados no estado.")
+            raise ValueError(
+                "Detalhes do agendamento não encontrados no estado."
+            )
 
         logger.info(f"Detalhes do agendamento: {details}")
 
@@ -103,20 +113,22 @@ async def book_appointment_node(state: MessageAgentState) -> MessageAgentState:
             ),
             None,
         )
-        
+
         chosen_time = _extract_time_from_message(last_user_message)
         if not chosen_time:
             raise ValueError(
                 f"Não foi possível extrair um horário da mensagem: '{last_user_message}'"
             )
-        
+
         logger.info(f"Horário escolhido extraído: {chosen_time}")
 
         # 3. Extrair data das mensagens da conversa
         appointment_date = _extract_date_from_conversation(current_messages)
         if not appointment_date:
-            raise ValueError("Não foi possível extrair a data do agendamento das mensagens.")
-        
+            raise ValueError(
+                "Não foi possível extrair a data do agendamento das mensagens."
+            )
+
         logger.info(f"Data do agendamento extraída: {appointment_date}")
 
         # 4. Instanciar dependências
@@ -132,9 +144,13 @@ async def book_appointment_node(state: MessageAgentState) -> MessageAgentState:
                 f"Não foi possível encontrar o ID para o profissional '{details.professional_name}'"
             )
 
-        specialty_id = await _get_specialty_id_by_name(details.specialty, repository)
-        
-        logger.info(f"Professional ID: {professional_id}, Specialty ID: {specialty_id}")
+        specialty_id = await _get_specialty_id_by_name(
+            details.specialty, repository
+        )
+
+        logger.info(
+            f"Professional ID: {professional_id}, Specialty ID: {specialty_id}"
+        )
 
         # 6. Calcular hora de fim (1 hora após o início)
         start_hour, start_minute = chosen_time.split(":")
@@ -173,23 +189,33 @@ async def book_appointment_node(state: MessageAgentState) -> MessageAgentState:
             try:
                 remove_tag_url = f"https://n8n-server.apphealth.com.br/webhook/remove-tag?phone={phone_number}"
                 async with httpx.AsyncClient() as client:
-                    remove_response = await client.get(remove_tag_url, timeout=5.0)
+                    remove_response = await client.get(
+                        remove_tag_url, timeout=5.0
+                    )
                     remove_response.raise_for_status()
-                    logger.info(f"Tag removida com sucesso para {phone_number}")
+                    logger.info(
+                        f"Tag removida com sucesso para {phone_number}"
+                    )
             except Exception as tag_error:
-                logger.warning(f"Erro ao remover tag para {phone_number}: {tag_error}")
+                logger.warning(
+                    f"Erro ao remover tag para {phone_number}: {tag_error}"
+                )
                 # Não falha o agendamento se não conseguir remover a tag
 
         # 10. Gerar mensagem de sucesso
-        date_formatted = datetime.strptime(appointment_date, "%Y-%m-%d").strftime("%d/%m/%Y")
+        date_formatted = datetime.strptime(
+            appointment_date, "%Y-%m-%d"
+        ).strftime("%d/%m/%Y")
         response_text = f"Perfeito! Agendamento confirmado com sucesso para o dia {date_formatted} às {chosen_time} com {details.professional_name}. Obrigado por utilizar nossos serviços!"
 
         # 11. Atualizar estado com horário escolhido
-        details_dict = details.__dict__ if hasattr(details, '__dict__') else details
+        details_dict = (
+            details.__dict__ if hasattr(details, "__dict__") else details
+        )
         updated_details = {
             **details_dict,
             "time_preference": details.time_preference,
-            "specific_time": chosen_time
+            "specific_time": chosen_time,
         }
 
         final_message = AIMessage(content=response_text)
@@ -204,7 +230,7 @@ async def book_appointment_node(state: MessageAgentState) -> MessageAgentState:
 
     except Exception as e:
         logger.error(f"Erro crítico no nó de agendamento: {e}", exc_info=True)
-        
+
         # Mensagem de erro mais específica baseada no tipo de erro
         if "API" in str(e) or "HTTP" in str(e):
             response_text = "Tive um problema de conexão com o sistema de agendamentos. Por favor, tente novamente em alguns instantes ou entre em contato com nossa central."

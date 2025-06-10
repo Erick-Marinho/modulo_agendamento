@@ -2,7 +2,9 @@ import logging
 
 from langgraph.checkpoint.memory import MemorySaver
 
-from app.infrastructure.persistence.ISaveCheckpoint import SaveCheckpointInterface
+from app.infrastructure.persistence.ISaveCheckpoint import (
+    SaveCheckpointInterface,
+)
 
 logger = logging.getLogger(__name__)
 

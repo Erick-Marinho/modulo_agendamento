@@ -1,6 +1,8 @@
 import logging
 from typing import List
-from app.infrastructure.interfaces.imedical_repository import IMedicalRepository
+from app.infrastructure.interfaces.imedical_repository import (
+    IMedicalRepository,
+)
 from app.domain.entities.medical_specialty import ApiMedicalSpecialty
 from app.domain.entities.medical_professional import ApiMedicalProfessional
 from app.infrastructure.clients.apphealth_api_client import AppHealthAPIClient
@@ -100,8 +102,8 @@ if __name__ == "__main__":
             print("Nenhum profissional encontrado ou erro na busca.")
 
         print("\nBuscando profissionais de 'Cardiologia' via repositório...")
-        cardio_professionals = await repository.get_professionals_by_specialty_name(
-            "Cardiologia"
+        cardio_professionals = (
+            await repository.get_professionals_by_specialty_name("Cardiologia")
         )
         if cardio_professionals:
             for prof in cardio_professionals:
@@ -113,8 +115,10 @@ if __name__ == "__main__":
             print("Nenhum profissional de Cardiologia encontrado.")
 
         print("\nBuscando profissionais de 'Clínico Geral' via repositório...")
-        clinico_professionals = await repository.get_professionals_by_specialty_name(
-            "Clínico Geral"
+        clinico_professionals = (
+            await repository.get_professionals_by_specialty_name(
+                "Clínico Geral"
+            )
         )
         if clinico_professionals:
             for prof in clinico_professionals:

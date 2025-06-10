@@ -13,7 +13,9 @@ def farewell_node(state: MessageAgentState) -> dict:
         user_text = last_message.content
         print(f"User text: {user_text}")
 
-    ai_response_text = "Até mais! Foi um prazer ajudar você. Volte sempre que precisar!"
+    ai_response_text = (
+        "Até mais! Foi um prazer ajudar você. Volte sempre que precisar!"
+    )
 
     # CORREÇÃO: Adicionar à conversa em vez de sobrescrever
     updated_messages = current_messages + [AIMessage(content=ai_response_text)]

@@ -18,12 +18,16 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
     logger.info(f"--- Executando nó orquestrador ---")
 
     messages = state.get("messages", [])
-    conversation_history_str = _format_conversation_history_for_prompt(messages)
+    conversation_history_str = _format_conversation_history_for_prompt(
+        messages
+    )
 
     existing_details = state.get("extracted_scheduling_details")
 
     llm_service = LLMFactory.create_llm_service("openai")
-    new_details = llm_service.extract_scheduling_details(conversation_history_str)
+    new_details = llm_service.extract_scheduling_details(
+        conversation_history_str
+    )
 
     updated_details = _merge_scheduling_details(existing_details, new_details)
 
@@ -33,24 +37,45 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
 
     # PRIMEIRA PRIORIDADE: Detectar menção de especialidade e ser proativo
     last_message = messages[-1].content.lower().strip() if messages else ""
-    
+
     # Lista expandida de especialidades e suas variações
     specialty_keywords = [
-        'cardiologia', 'cardiologista', 'cardio',
-        'pediatria', 'pediatra', 'pedra',
-        'ortopedia', 'ortopedista', 'orto',
-        'clínico geral', 'clinico geral', 'clínico', 'clinico',
-        'ginecologia', 'ginecologista', 'gineco',
-        'dermatologia', 'dermatologista', 'dermato',
-        'neurologia', 'neurologista', 'neuro',
-        'psiquiatria', 'psiquiatra'
+        "cardiologia",
+        "cardiologista",
+        "cardio",
+        "pediatria",
+        "pediatra",
+        "pedra",
+        "ortopedia",
+        "ortopedista",
+        "orto",
+        "clínico geral",
+        "clinico geral",
+        "clínico",
+        "clinico",
+        "ginecologia",
+        "ginecologista",
+        "gineco",
+        "dermatologia",
+        "dermatologista",
+        "dermato",
+        "neurologia",
+        "neurologista",
+        "neuro",
+        "psiquiatria",
+        "psiquiatra",
     ]
-    
+
     # Se o usuário mencionou uma especialidade E o sistema extraiu uma especialidade, ser proativo
-    if (updated_details and updated_details.specialty and 
-        not updated_details.professional_name and
-        any(keyword in last_message for keyword in specialty_keywords)):
-        logger.info(f"🎯 DETECTADO: Usuário mencionou especialidade '{last_message}' -> Extraído: '{updated_details.specialty}'. Sendo proativo!")
+    if (
+        updated_details
+        and updated_details.specialty
+        and not updated_details.professional_name
+        and any(keyword in last_message for keyword in specialty_keywords)
+    ):
+        logger.info(
+            f"🎯 DETECTADO: Usuário mencionou especialidade '{last_message}' -> Extraído: '{updated_details.specialty}'. Sendo proativo!"
+        )
         return {
             **state,
             "next_step": AGENT_TOOL_CALLER_NODE_NAME,
@@ -58,16 +83,32 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
         }
 
     # SEGUNDA PRIORIDADE: Verificar disponibilidade
-    if any(keyword in last_message for keyword in ["disponível", "datas", "horários", "agenda", "disponibilidade", "livre", "vago", "quando"]):
+    if any(
+        keyword in last_message
+        for keyword in [
+            "disponível",
+            "datas",
+            "horários",
+            "agenda",
+            "disponibilidade",
+            "livre",
+            "vago",
+            "quando",
+        ]
+    ):
         if updated_details and updated_details.professional_name:
-            logger.info(f"Usuário perguntou sobre disponibilidade para '{updated_details.professional_name}'. Direcionando para tool.")
+            logger.info(
+                f"Usuário perguntou sobre disponibilidade para '{updated_details.professional_name}'. Direcionando para tool."
+            )
             return {
                 **state,
                 "next_step": AGENT_TOOL_CALLER_NODE_NAME,
                 "conversation_context": "checking_availability",
             }
         else:
-            logger.info("Usuário perguntou sobre disponibilidade mas não definiu profissional. Direcionando para esclarecimento.")
+            logger.info(
+                "Usuário perguntou sobre disponibilidade mas não definiu profissional. Direcionando para esclarecimento."
+            )
             return {
                 **state,
                 "next_step": "clarification",
@@ -77,9 +118,16 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
     # TERCEIRA PRIORIDADE: Calcular campos faltantes apenas se não detectou especialidade
     calculated_missing_fields = []
     if updated_details:
-        if not updated_details.professional_name and not updated_details.specialty:
-            calculated_missing_fields.append("nome do profissional ou especialidade")
-        elif not updated_details.professional_name and updated_details.specialty:
+        if (
+            not updated_details.professional_name
+            and not updated_details.specialty
+        ):
+            calculated_missing_fields.append(
+                "nome do profissional ou especialidade"
+            )
+        elif (
+            not updated_details.professional_name and updated_details.specialty
+        ):
             # Se tem especialidade mas não tem profissional, NÃO adiciona aos campos faltantes
             # porque vamos buscar os profissionais automaticamente
             pass
@@ -91,8 +139,14 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
             calculated_missing_fields.append("tipo de serviço")
 
     # Se extraiu informações de agendamento e faltam campos críticos, vai para clarification
-    if updated_details and updated_details.service_type and calculated_missing_fields:
-        logger.info(f"Agendamento detectado com campos faltando: {calculated_missing_fields}. Direcionando para clarification.")
+    if (
+        updated_details
+        and updated_details.service_type
+        and calculated_missing_fields
+    ):
+        logger.info(
+            f"Agendamento detectado com campos faltando: {calculated_missing_fields}. Direcionando para clarification."
+        )
         return {
             **state,
             "missing_fields": calculated_missing_fields,
@@ -133,7 +187,7 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
 
     # NOVA LÓGICA: Verificar se estamos no meio de um fluxo de agendamento
     missing_fields = state.get("missing_fields", [])
-    
+
     # CORRIGIDO: usar updated_details em vez de extracted_details
     if updated_details and missing_fields:
         logger.info(
@@ -159,18 +213,24 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
         if state.get("message"):
             last_human_message_content = state.get("message")
         else:
-            logger.warning("Orquestrador: Nenhuma mensagem humana para classificar.")
+            logger.warning(
+                "Orquestrador: Nenhuma mensagem humana para classificar."
+            )
             return {
                 **state,
                 "next_step": "unclear",
                 "conversation_context": "system_error",
             }
 
-    logger.info(f"Orquestrador classificando mensagem: '{last_human_message_content}'")
+    logger.info(
+        f"Orquestrador classificando mensagem: '{last_human_message_content}'"
+    )
 
     try:
         llm_service = LLMFactory.create_llm_service("openai")
-        classification = llm_service.classify_message(last_human_message_content)
+        classification = llm_service.classify_message(
+            last_human_message_content
+        )
 
         classification = classification.strip().lower()
         logger.info(
@@ -233,7 +293,9 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
         }
 
 
-def _format_conversation_history_for_prompt(messages: list[BaseMessage], max_messages: int = 10) -> str:
+def _format_conversation_history_for_prompt(
+    messages: list[BaseMessage], max_messages: int = 10
+) -> str:
     if not messages:
         return "Nenhuma conversa ainda"
     recent_messages = messages[-max_messages:]
@@ -243,7 +305,10 @@ def _format_conversation_history_for_prompt(messages: list[BaseMessage], max_mes
         formatted_history.append(f"{role}: {msg.content}")
     return "\n".join(formatted_history)
 
-def _merge_scheduling_details(existing: SchedulingDetails, new: SchedulingDetails) -> SchedulingDetails:
+
+def _merge_scheduling_details(
+    existing: SchedulingDetails, new: SchedulingDetails
+) -> SchedulingDetails:
     if not existing:
         return new
     if not new:

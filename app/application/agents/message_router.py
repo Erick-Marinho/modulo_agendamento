@@ -10,14 +10,24 @@ class MessageRouter:
     def route_orquestrator(self, state):
         """
         Função de decisão para roteamento condicional após o nó de orquestração.
-        Lê o campo 'next_step' do estado.
+        Lê o campo 'next_step' do estado E verifica conversation_context.
         """
         next_step = state.get("next_step", "").lower()
+        conversation_context = state.get("conversation_context", "").lower()
 
         logger.info(
-            f"Roteando (from route_orquestrator) com base no next_step: '{next_step}'"
+            f"Roteando (from route_orquestrator) com base no next_step: '{next_step}', conversation_context: '{conversation_context}'"
         )
 
+        # 🆕 VERIFICAÇÃO DE CONTEXTO PRIMEIRO
+        # Se está aguardando seleção de data, vai para scheduling_info_node
+        if conversation_context == "awaiting_date_selection":
+            logger.info(
+                "Usuário está escolhendo nova data. Direcionando para scheduling_info_node"
+            )
+            return "scheduling_info_node"
+
+        # Roteamento normal baseado em next_step (código existente)
         route_map = {
             "scheduling": "scheduling_node",
             "scheduling_info": "scheduling_info_node",
@@ -113,3 +123,32 @@ class MessageRouter:
                 f"Valor inesperado para next_step após check_completeness: {next_step}"
             )
             return "clarification_node"
+
+    def route_after_check_availability(self, state):
+        """
+        Decide para onde ir depois do check_availability_node.
+        """
+        conversation_context = state.get("conversation_context", "").lower()
+        next_step = state.get("next_step", "").lower()
+
+        logger.info(
+            f"Roteando após check_availability: next_step='{next_step}', context='{conversation_context}'"
+        )
+
+        # 🆕 Se já mostrou datas alternativas, finalizar
+        if conversation_context == "awaiting_date_selection":
+            logger.info("Check availability mostrou datas alternativas. Finalizando.")
+            return "END"
+
+        # 🆕 Se tudo certo, continuar fluxo normal
+        if conversation_context == "awaiting_slot_selection":
+            logger.info("Check availability encontrou horários. Finalizando.")
+            return "END"
+
+        # Fluxo padrão - ir para agent_tool_caller se necessário
+        if next_step == "agent_tool_caller":
+            logger.info("Check availability delegando para agent_tool_caller.")
+            return "agent_tool_caller"
+
+        logger.info("Check availability finalizando por padrão.")
+        return "END"

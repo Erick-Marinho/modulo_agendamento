@@ -20,9 +20,13 @@ def validate_and_confirm_node(state: MessageAgentState) -> MessageAgentState:
         return {**state, "next_step": "clarification"}
 
     try:
-        confirmation_message = _generate_confirmation_message(extracted_details)
+        confirmation_message = _generate_confirmation_message(
+            extracted_details
+        )
 
-        updated_messages = current_messages + [AIMessage(content=confirmation_message)]
+        updated_messages = current_messages + [
+            AIMessage(content=confirmation_message)
+        ]
 
         logger.info(f"Mensagem de confirmação gerada: {confirmation_message}")
 

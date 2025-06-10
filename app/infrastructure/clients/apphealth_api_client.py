@@ -22,7 +22,11 @@ class AppHealthAPIClient:
             try:
                 logger.debug(f"Requesting URL: {url} with params: {params}")
                 response = await client.request(
-                    method, url, headers=self.headers, params=params, timeout=10.0
+                    method,
+                    url,
+                    headers=self.headers,
+                    params=params,
+                    timeout=10.0,
                 )
                 response.raise_for_status()
                 return response.json()
@@ -46,7 +50,9 @@ class AppHealthAPIClient:
             logger.info("Fetching specialties from AppHealth API")
             data = await self._request("GET", "/especialidades")
             specialties = [ApiMedicalSpecialty(**item) for item in data]
-            logger.info(f"Successfully fetched {len(specialties)} specialties.")
+            logger.info(
+                f"Successfully fetched {len(specialties)} specialties."
+            )
             return specialties
         except Exception as e:
             logger.error(f"Failed to fetch or parse specialties: {e}")
@@ -60,7 +66,9 @@ class AppHealthAPIClient:
                 "GET", "/profissionais", params={"status": "true"}
             )
             professionals = [ApiMedicalProfessional(**item) for item in data]
-            logger.info(f"Successfully fetched {len(professionals)} professionals.")
+            logger.info(
+                f"Successfully fetched {len(professionals)} professionals."
+            )
             return professionals
         except Exception as e:
             logger.error(f"Failed to fetch or parse professionals: {e}")
@@ -108,7 +116,9 @@ class AppHealthAPIClient:
             )
             return []
 
-    async def book_appointment_on_api(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+    async def book_appointment_on_api(
+        self, payload: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Realiza o agendamento (POST) na API."""
         try:
             endpoint = "/agendamentos"
@@ -120,7 +130,9 @@ class AppHealthAPIClient:
                 )
                 response.raise_for_status()
                 booked_data = response.json()
-                logger.info(f"Successfully booked appointment. Response: {booked_data}")
+                logger.info(
+                    f"Successfully booked appointment. Response: {booked_data}"
+                )
                 return booked_data
         except httpx.HTTPStatusError as e:
             logger.error(

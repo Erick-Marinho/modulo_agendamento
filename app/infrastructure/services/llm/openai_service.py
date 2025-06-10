@@ -23,7 +23,9 @@ from app.application.agents.prompts.generate_general_help_prompt import (
 from app.application.agents.prompts.classify_confirmation_response_prompt import (
     CLASSIFY_CONFIRMATION_RESPONSE_TEMPLATE,
 )
-from app.application.agents.prompts.translate_date_prompt import TRANSLATE_DATE_PROMPT
+from app.application.agents.prompts.translate_date_prompt import (
+    TRANSLATE_DATE_PROMPT,
+)
 from app.application.interfaces.illm_service import ILLMService
 from app.domain.sheduling_details import SchedulingDetails
 from langchain_core.output_parsers import PydanticOutputParser
@@ -113,7 +115,8 @@ class OpenAIService(ILLMService):
         Gera uma mensagem de confirmação dos dados de agendamento.
         """
         prompt_values = {
-            "professional_name": details.professional_name or "Não especificado",
+            "professional_name": details.professional_name
+            or "Não especificado",
             "specialty": details.specialty or "Não especificada",
             "date_preference": details.date_preference or "Não especificada",
             "time_preference": details.time_preference or "Não especificado",
@@ -162,9 +165,7 @@ class OpenAIService(ILLMService):
             return llm_response.content
         except Exception as e:
             logger.error(f"Erro ao gerar mensagem de ajuda: {e}")
-            return (
-                "Posso ajudar com agendamentos. Informe profissional, data e horário."
-            )
+            return "Posso ajudar com agendamentos. Informe profissional, data e horário."
 
     def generate_unclear_response_message(self) -> str:
         """
@@ -220,7 +221,8 @@ class OpenAIService(ILLMService):
         Gera uma mensagem de confirmação dos dados de agendamento.
         """
         prompt_values = {
-            "professional_name": details.professional_name or "Não especificado",
+            "professional_name": details.professional_name
+            or "Não especificado",
             "specialty": details.specialty or "Não especificada",
             "date_preference": details.date_preference or "Não especificada",
             "time_preference": details.time_preference or "Não especificado",
@@ -265,7 +267,9 @@ class OpenAIService(ILLMService):
             logger.error(f"Erro ao classificar resposta de confirmação: {e}")
             return "unclear"
 
-    def translate_natural_date(self, user_preference: str, current_date: str) -> str:
+    def translate_natural_date(
+        self, user_preference: str, current_date: str
+    ) -> str:
         """
         Traduz a data natural do usuário usando o LLM.
         """

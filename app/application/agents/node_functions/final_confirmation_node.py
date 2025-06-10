@@ -142,7 +142,9 @@ def _has_specific_data(message_lower: str) -> bool:
     return any(keyword in message_lower for keyword in specific_keywords)
 
 
-def _handle_confirmed_appointment(state: MessageAgentState) -> MessageAgentState:
+def _handle_confirmed_appointment(
+    state: MessageAgentState,
+) -> MessageAgentState:
     """
     Lida com agendamento confirmado.
     """
@@ -159,7 +161,11 @@ def _handle_confirmed_appointment(state: MessageAgentState) -> MessageAgentState
 
     updated_messages = current_messages + [AIMessage(content=success_message)]
 
-    return {**state, "messages": updated_messages, "next_step": "appointment_confirmed"}
+    return {
+        **state,
+        "messages": updated_messages,
+        "next_step": "appointment_confirmed",
+    }
 
 
 def _handle_unclear_response(state: MessageAgentState) -> MessageAgentState:
@@ -177,7 +183,9 @@ def _handle_unclear_response(state: MessageAgentState) -> MessageAgentState:
         logger.error(f"Erro ao gerar mensagem de esclarecimento via IA: {e}")
         clarification_message = "Confirma os dados? Responda 'sim' ou 'não'."
 
-    updated_messages = current_messages + [AIMessage(content=clarification_message)]
+    updated_messages = current_messages + [
+        AIMessage(content=clarification_message)
+    ]
 
     return {
         **state,
@@ -197,16 +205,18 @@ def _handle_simple_rejection(state: MessageAgentState) -> MessageAgentState:
     last_user_message_content = _get_last_user_message(current_messages)
 
     correction_message_text = ""
-    target_field = _identify_target_field_from_rejection(last_user_message_content)
+    target_field = _identify_target_field_from_rejection(
+        last_user_message_content
+    )
 
     if target_field == "horário":
         correction_message_text = "Entendi que você gostaria de alterar o horário. Qual o novo horário de sua preferência (manhã ou tarde, ou o horário específico)?"
     elif target_field == "data":
-        correction_message_text = "Certo. Para qual nova data você gostaria de agendar?"
-    elif target_field == "profissional":
         correction_message_text = (
-            "Ok. Qual o nome do novo profissional que você gostaria de consultar?"
+            "Certo. Para qual nova data você gostaria de agendar?"
         )
+    elif target_field == "profissional":
+        correction_message_text = "Ok. Qual o nome do novo profissional que você gostaria de consultar?"
     elif target_field == "especialidade":
         correction_message_text = (
             "Entendido. Qual a nova especialidade que você procura?"
@@ -217,17 +227,29 @@ def _handle_simple_rejection(state: MessageAgentState) -> MessageAgentState:
         )
         try:
             llm_service = LLMFactory.create_llm_service("openai")
-            correction_message_text = llm_service.generate_correction_request_message()
+            correction_message_text = (
+                llm_service.generate_correction_request_message()
+            )
         except Exception as e:
-            logger.error(f"Erro ao gerar mensagem de correção genérica via IA: {e}")
+            logger.error(
+                f"Erro ao gerar mensagem de correção genérica via IA: {e}"
+            )
             correction_message_text = "Entendi que você quer alterar algo. Por favor, me informe especificamente o que gostaria de mudar (por exemplo, data, horário, profissional ou especialidade)."
 
-    updated_messages = current_messages + [AIMessage(content=correction_message_text)]
+    updated_messages = current_messages + [
+        AIMessage(content=correction_message_text)
+    ]
 
-    return {**state, "messages": updated_messages, "next_step": "awaiting_correction"}
+    return {
+        **state,
+        "messages": updated_messages,
+        "next_step": "awaiting_correction",
+    }
 
 
-def _handle_correction_with_data(state: MessageAgentState) -> MessageAgentState:
+def _handle_correction_with_data(
+    state: MessageAgentState,
+) -> MessageAgentState:
     """
     Usuário já forneceu dados para correção - processa diretamente.
     """
@@ -269,6 +291,8 @@ def _identify_target_field_from_rejection(message: str) -> Optional[str]:
 
     for field, field_keywords in keywords_map.items():
         if any(keyword in message_lower for keyword in field_keywords):
-            return field  # Retorna o nome do campo se encontrar uma palavra-chave
+            return (
+                field  # Retorna o nome do campo se encontrar uma palavra-chave
+            )
 
     return None

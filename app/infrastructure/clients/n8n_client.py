@@ -53,7 +53,9 @@ class N8NClient:
         async with httpx.AsyncClient(timeout=30.0) as client:
             try:
                 response = await client.post(
-                    self.n8n_webhook_url, content=payload_json, headers=self.n8n_headers
+                    self.n8n_webhook_url,
+                    content=payload_json,
+                    headers=self.n8n_headers,
                 )
                 response.raise_for_status()
 

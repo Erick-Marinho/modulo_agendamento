@@ -21,9 +21,7 @@ def other_node(state: MessageAgentState) -> MessageAgentState:
         ai_response_text = llm_service.generate_general_help_message()
     except Exception as e:
         logger.error(f"Erro ao gerar mensagem de ajuda via IA: {e}")
-        ai_response_text = (
-            "Posso ajudar com agendamentos. Informe profissional, data e horário."
-        )
+        ai_response_text = "Posso ajudar com agendamentos. Informe profissional, data e horário."
 
     updated_messages = current_messages + [AIMessage(content=ai_response_text)]
 

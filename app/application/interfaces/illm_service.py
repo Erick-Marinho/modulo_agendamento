@@ -169,7 +169,9 @@ class ILLMService(ABC):
         pass
 
     @abstractmethod
-    def translate_natural_date(self, user_preference: str, current_date: str) -> str:
+    def translate_natural_date(
+        self, user_preference: str, current_date: str
+    ) -> str:
         """
         Traduz uma preferência de data em linguagem natural para uma data concreta
         baseada em uma lista de datas disponíveis.

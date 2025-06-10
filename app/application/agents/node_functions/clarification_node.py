@@ -32,8 +32,12 @@ def clarification_node(state: MessageAgentState) -> MessageAgentState:
     """
     logger.info("--- EXECUTANDO NÓ DE ESCLARECIMENTO ---")
 
-    current_messages: List[HumanMessage | AIMessage] = state.get("messages", [])
-    details: Optional[SchedulingDetails] = state.get("extracted_scheduling_details")
+    current_messages: List[HumanMessage | AIMessage] = state.get(
+        "messages", []
+    )
+    details: Optional[SchedulingDetails] = state.get(
+        "extracted_scheduling_details"
+    )
 
     if details is None:
         logger.warning(
@@ -41,7 +45,11 @@ def clarification_node(state: MessageAgentState) -> MessageAgentState:
         )
         ai_response_text = "Humm, não consegui entender todos os detalhes para o seu agendamento. Poderia me dizer o nome do profissional, a data e o horário que você gostaria, por favor?"
         current_messages.append(AIMessage(content=ai_response_text))
-        return {**state, "messages": current_messages, "next_step": "END_AWAITING_USER"}
+        return {
+            **state,
+            "messages": current_messages,
+            "next_step": "END_AWAITING_USER",
+        }
 
     missing_fields: List[str] = []
     if not details.professional_name:
@@ -59,7 +67,9 @@ def clarification_node(state: MessageAgentState) -> MessageAgentState:
         logger.info(f"Informações de agendamento faltantes: {missing_fields}")
 
         service_type_info = (
-            details.service_type if details.service_type else "serviço desejado"
+            details.service_type
+            if details.service_type
+            else "serviço desejado"
         )
         missing_fields_str = _format_missing_fields_for_prompt(missing_fields)
 
@@ -74,13 +84,21 @@ def clarification_node(state: MessageAgentState) -> MessageAgentState:
                 date_preference=details.date_preference,
                 time_preference=details.time_preference,
             )
-            logger.info(f"Pergunta de esclarecimento gerada: {ai_response_text}")
+            logger.info(
+                f"Pergunta de esclarecimento gerada: {ai_response_text}"
+            )
         except Exception as e:
-            logger.error(f"Erro ao gerar pergunta de esclarecimento via LLM: {e}")
+            logger.error(
+                f"Erro ao gerar pergunta de esclarecimento via LLM: {e}"
+            )
             ai_response_text = f"Para continuarmos com o agendamento do(a) {service_type_info}, preciso de mais alguns detalhes: {missing_fields_str}. Poderia me informar, por favor?"
 
         current_messages.append(AIMessage(content=ai_response_text))
-        return {**state, "messages": current_messages, "next_step": "END_AWAITING_USER"}
+        return {
+            **state,
+            "messages": current_messages,
+            "next_step": "END_AWAITING_USER",
+        }
     else:
         logger.info(
             "Todos os detalhes essenciais para o agendamento foram coletados e estão presentes."

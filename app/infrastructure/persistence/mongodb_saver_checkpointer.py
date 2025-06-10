@@ -2,8 +2,14 @@ import logging
 import asyncio
 from typing import Optional, Any, Dict, List, Sequence
 from langgraph.checkpoint.mongodb import MongoDBSaver
-from langgraph.checkpoint.base import BaseCheckpointSaver, Checkpoint, CheckpointTuple
-from app.infrastructure.persistence.ISaveCheckpoint import SaveCheckpointInterface
+from langgraph.checkpoint.base import (
+    BaseCheckpointSaver,
+    Checkpoint,
+    CheckpointTuple,
+)
+from app.infrastructure.persistence.ISaveCheckpoint import (
+    SaveCheckpointInterface,
+)
 from app.infrastructure.config.config import settings
 from pymongo import MongoClient
 from pymongo.errors import PyMongoError
@@ -16,7 +22,9 @@ class AsyncMongoDBSaver(MongoDBSaver):
     MongoDBSaver customizado com suporte completo a métodos assíncronos
     """
 
-    async def aget_tuple(self, config: Dict[str, Any]) -> Optional[CheckpointTuple]:
+    async def aget_tuple(
+        self, config: Dict[str, Any]
+    ) -> Optional[CheckpointTuple]:
         """
         Implementação assíncrona do get_tuple usando thread pool
         """
@@ -99,7 +107,9 @@ class AsyncMongoDBSaver(MongoDBSaver):
             loop = asyncio.get_event_loop()
             result = await loop.run_in_executor(
                 None,
-                lambda: self.list(config, filter=filter, before=before, limit=limit),
+                lambda: self.list(
+                    config, filter=filter, before=before, limit=limit
+                ),
             )
             logger.debug(f"alist retornou {len(result)} items")
             return result
@@ -129,7 +139,9 @@ class MongoDBSaverCheckpointer(SaveCheckpointInterface):
         """
         try:
             logger.info("Criando cliente MongoDB...")
-            client = MongoClient(self.mongodb_uri, serverSelectionTimeoutMS=5000)
+            client = MongoClient(
+                self.mongodb_uri, serverSelectionTimeoutMS=5000
+            )
 
             # Testar conexão
             logger.info("Testando conexão com MongoDB...")
@@ -148,7 +160,9 @@ class MongoDBSaverCheckpointer(SaveCheckpointInterface):
 
         except PyMongoError as e:
             logger.error(f"❌ Erro de conexão MongoDB: {e}")
-            logger.warning("🔄 Fallback para MemorySaver devido a erro no MongoDB")
+            logger.warning(
+                "🔄 Fallback para MemorySaver devido a erro no MongoDB"
+            )
             from langgraph.checkpoint.memory import MemorySaver
 
             return MemorySaver()

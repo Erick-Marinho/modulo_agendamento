@@ -1,48 +1,48 @@
 # app/application/agents/message_agent_builder.py
-from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.base import BaseCheckpointSaver  # Para o tipo do checkpointer
+from langgraph.graph import END, StateGraph
 
 from app.application.agents.message_router import MessageRouter
-from app.application.agents.state.message_agent_state import MessageAgentState
-
-from app.application.agents.node_functions.fallback_node import fallback_node
-from app.application.agents.node_functions.scheduling_node import scheduling_node
-from app.application.agents.node_functions.orquestrator_node import orquestrator_node
-from app.application.agents.node_functions.greeting_node import greeting_node
-from app.application.agents.node_functions.farewell_node import farewell_node
-from app.application.agents.node_functions.collection_node import collection_node
-from app.application.agents.node_functions.clarification_node import clarification_node
-from app.application.agents.node_functions.scheduling_info_node import (
-    scheduling_info_node,
+from app.application.agents.node_functions.api_tools_node import (
+    TOOL_NODE_NAME as EXECUTE_MEDICAL_TOOLS_NODE_NAME,
 )
-from app.application.agents.node_functions.check_completeness_node import (
-    check_completeness_node,
-)
-from app.application.agents.node_functions.other_node import other_node
-from app.application.agents.node_functions.validate_and_confirm_node import (
-    validate_and_confirm_node,
-)
-from app.application.agents.node_functions.final_confirmation_node import (
-    final_confirmation_node,
-)
-from app.application.agents.node_functions.check_availability_node import (
-    check_availability_node,
+from app.application.agents.node_functions.api_tools_node import (
+    create_api_tool_executor_node,
+    create_tool_calling_agent_node,
 )
 from app.application.agents.node_functions.book_appintment_node import (
     book_appointment_node,
 )
-
+from app.application.agents.node_functions.check_availability_node import (
+    check_availability_node,
+)
+from app.application.agents.node_functions.check_completeness_node import (
+    check_completeness_node,
+)
+from app.application.agents.node_functions.clarification_node import clarification_node
+from app.application.agents.node_functions.collection_node import collection_node
+from app.application.agents.node_functions.fallback_node import fallback_node
+from app.application.agents.node_functions.farewell_node import farewell_node
+from app.application.agents.node_functions.final_confirmation_node import (
+    final_confirmation_node,
+)
+from app.application.agents.node_functions.greeting_node import greeting_node
+from app.application.agents.node_functions.orquestrator_node import orquestrator_node
+from app.application.agents.node_functions.other_node import other_node
+from app.application.agents.node_functions.scheduling_info_node import (
+    scheduling_info_node,
+)
+from app.application.agents.node_functions.scheduling_node import scheduling_node
+from app.application.agents.node_functions.validate_and_confirm_node import (
+    validate_and_confirm_node,
+)
+from app.application.agents.state.message_agent_state import MessageAgentState
+from app.application.agents.tools.medical_api_tools import MedicalApiTools
 from app.infrastructure.clients.apphealth_api_client import AppHealthAPIClient
 from app.infrastructure.repositories.apphealth_api_medical_repository import (
     AppHealthAPIMedicalRepository,
 )
-from app.application.agents.tools.medical_api_tools import MedicalApiTools
 from app.infrastructure.services.llm.llm_factory import LLMFactory
-from app.application.agents.node_functions.api_tools_node import (
-    create_tool_calling_agent_node,
-    create_api_tool_executor_node,
-    TOOL_NODE_NAME as EXECUTE_MEDICAL_TOOLS_NODE_NAME,
-)
 
 AGENT_TOOL_CALLER_NODE_NAME = "agent_tool_caller"
 
@@ -68,7 +68,7 @@ class MessageAgentBuilder:
         # 3. Tools
         self.medical_api_tools = MedicalApiTools(
             medical_repository=self.apphealth_repository,
-            api_client=self.apphealth_api_client
+            api_client=self.apphealth_api_client,
         )
 
         self._build_graph()
@@ -106,7 +106,8 @@ class MessageAgentBuilder:
 
         # Novos nós para Tools
         tool_calling_agent_func = create_tool_calling_agent_node(
-            llm_service=self.llm_service, medical_api_tools=self.medical_api_tools
+            llm_service=self.llm_service,
+            medical_api_tools=self.medical_api_tools,
         )
         self.graph.add_node(AGENT_TOOL_CALLER_NODE_NAME, tool_calling_agent_func)
 
@@ -150,9 +151,7 @@ class MessageAgentBuilder:
             },
         )
 
-        self.graph.add_edge(
-            EXECUTE_MEDICAL_TOOLS_NODE_NAME, AGENT_TOOL_CALLER_NODE_NAME
-        )
+        self.graph.add_edge(EXECUTE_MEDICAL_TOOLS_NODE_NAME, AGENT_TOOL_CALLER_NODE_NAME)
 
         self.graph.add_edge("scheduling_node", "collection_node")
         self.graph.add_edge("collection_node", "clarification_node")
@@ -198,7 +197,13 @@ class MessageAgentBuilder:
             },
         )
 
-        self.graph.add_edge("check_availability_node", END)
+        # Roteamento condicional após check_availability_node
+        self.graph.add_conditional_edges(
+            "check_availability_node",
+            self.router.route_after_check_availability,
+            {"END": END, "agent_tool_caller": "agent_tool_caller"},
+        )
+
         self.graph.add_edge("book_appointment_node", END)
 
         self.graph.add_conditional_edges(
@@ -217,6 +222,17 @@ class MessageAgentBuilder:
         self.graph.add_edge("other_node", END)
         self.graph.add_edge("fallback_node", END)
         self.graph.add_edge("farewell_node", END)
+
+    def _route_after_availability_check(self, state):
+        """
+        Decide o que fazer após check_availability_node.
+        """
+        conversation_context = state.get("conversation_context", "").lower()
+
+        if conversation_context == "awaiting_date_selection":
+            return "awaiting_date_selection"
+        else:
+            return "completed"
 
     def build_agent(self):
         """

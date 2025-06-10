@@ -19,18 +19,26 @@ class Settings(BaseSettings):
         ..., env="OPENAI_MODEL_NAME", description="Modelo do OpenAI"
     )
     OPENAI_TEMPERATURE: float = Field(
-        ..., env="OPENAI_TEMPERATURE", description="Temperatura para a geração de texto"
+        ...,
+        env="OPENAI_TEMPERATURE",
+        description="Temperatura para a geração de texto",
     )
 
     # === MongoDB Configuration ===
-    MONGODB_URI: str = Field(..., env="MONGODB_URI", description="URI do MongoDB")
+    MONGODB_URI: str = Field(
+        ..., env="MONGODB_URI", description="URI do MongoDB"
+    )
     MONGODB_DB_NAME: str = Field(
-        ..., env="MONGODB_DB_NAME", description="Nome do banco de dados MongoDB"
+        ...,
+        env="MONGODB_DB_NAME",
+        description="Nome do banco de dados MongoDB",
     )
 
     # === AppHealth API Configuration ===
     APPHEALTH_API_BASE_URL: str = Field(
-        ..., env="APPHEALTH_API_BASE_URL", description="Base URL da API do AppHealth"
+        ...,
+        env="APPHEALTH_API_BASE_URL",
+        description="Base URL da API do AppHealth",
     )
     APPHEALTH_API_TOKEN: str = Field(
         ..., env="APPHEALTH_API_TOKEN", description="Token da API do AppHealth"
@@ -55,7 +63,10 @@ class Settings(BaseSettings):
     )
 
     model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", case_sensitive=False, extra="ignore"
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
     )
 
 
@@ -76,4 +87,6 @@ if __name__ == "__main__":
     print(f"MongoDB URI: {settings.MONGODB_URI}")
     print(f"MongoDB DB: {settings.MONGODB_DB_NAME}")
     print(f"AppHealth URL: {settings.APPHEALTH_API_BASE_URL}")
-    print(f"AppHealth Token: {mask_sensitive_data(settings.APPHEALTH_API_TOKEN)}")
+    print(
+        f"AppHealth Token: {mask_sensitive_data(settings.APPHEALTH_API_TOKEN)}"
+    )

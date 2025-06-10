@@ -1,11 +1,13 @@
 import logging
+from typing import Optional
+
+from langchain_core.messages import AIMessage, HumanMessage
+
 from app.application.agents.state.message_agent_state import (
     MessageAgentState,
     SchedulingDetails,
 )
 from app.infrastructure.services.llm.llm_factory import LLMFactory
-from langchain_core.messages import HumanMessage
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +66,42 @@ def _update_existing_details(state: MessageAgentState) -> MessageAgentState:
     Atualiza os detalhes de agendamento existentes com as informações fornecidas pelo usuário.
     """
     try:
+        conversation_context = state.get("conversation_context", "")
+
+        # 🆕 CASO ESPECIAL: Usuário está escolhendo nova data
+        if conversation_context == "awaiting_date_selection":
+            logger.info(
+                "🔄 Contexto 'awaiting_date_selection' - Processando nova data escolhida"
+            )
+
+            # Apenas extrair e atualizar os detalhes - NÃO gerar mensagem
+            llm_service = LLMFactory.create_llm_service("openai")
+            all_messages = state.get("messages", [])
+            conversation_history = _format_conversation_history(
+                all_messages, max_messages=3
+            )
+
+            new_details = llm_service.extract_scheduling_details(conversation_history)
+
+            if new_details:
+                existing_details = state.get("extracted_scheduling_details")
+                updated_details = _merge_scheduling_details(
+                    existing_details, new_details
+                )
+
+                logger.info(f"Nova data extraída: {updated_details.date_preference}")
+
+                return {
+                    **state,
+                    "extracted_scheduling_details": updated_details,
+                    "conversation_context": "",  # Limpar contexto
+                    "next_step": "check_availability_node",
+                }
+
+            logger.warning("Falha ao extrair nova data")
+            return {**state, "next_step": "clarification"}
+
+        # Fluxo normal continua...
         llm_service = LLMFactory.create_llm_service("openai")
 
         all_messages = state.get("messages", [])
@@ -71,9 +109,7 @@ def _update_existing_details(state: MessageAgentState) -> MessageAgentState:
             logger.warning("Nenhuma mensagem encontrada para atualização")
             return {**state, "next_step": "clarification"}
 
-        conversation_history = _format_conversation_history(
-            all_messages, max_messages=3
-        )
+        conversation_history = _format_conversation_history(all_messages, max_messages=3)
 
         logger.info(
             f"Atualizando detalhes com o histórico recente: '{conversation_history}'"
@@ -87,9 +123,8 @@ def _update_existing_details(state: MessageAgentState) -> MessageAgentState:
 
             logger.info(f"Detalhes atualizados: {updated_details}")
 
-            # --- NOVA LÓGICA DE DIRECIONAMENTO ---
-            # Se estávamos corrigindo uma data, o próximo passo é checar a disponibilidade novamente.
-            if state.get("conversation_context") == "awaiting_new_date_selection":
+            # --- LÓGICA DE DIRECIONAMENTO ---
+            if conversation_context == "awaiting_new_date_selection":
                 next_node = "check_availability_node"
                 logger.info(
                     "Redirecionando de volta para a verificação de disponibilidade."

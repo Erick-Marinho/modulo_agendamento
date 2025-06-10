@@ -38,14 +38,19 @@ async def send_message(
             )
 
         # Retornamos o status do envio para o N8N como sucesso
-        return {"status": "message_processed_and_sent", "n8n_response": n8n_result}
+        return {
+            "status": "message_processed_and_sent",
+            "n8n_response": n8n_result,
+        }
 
     except HTTPException:
         # Re-lança exceções HTTP que já foram tratadas
         raise
 
     except Exception as e:
-        logger.error(f"Erro inesperado no endpoint /message: {e}", exc_info=True)
+        logger.error(
+            f"Erro inesperado no endpoint /message: {e}", exc_info=True
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Ocorreu um erro interno ao processar a mensagem.",

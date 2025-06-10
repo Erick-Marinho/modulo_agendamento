@@ -43,7 +43,9 @@ def collection_node(state: MessageAgentState) -> MessageAgentState:
     conversation_hitory_str = _format_conversation_history_for_prompt(
         all_messages, max_messages=5
     )
-    logger.info(f"Histórico formatado para extração:\n{conversation_hitory_str}")
+    logger.info(
+        f"Histórico formatado para extração:\n{conversation_hitory_str}"
+    )
 
     try:
         llm_type = "openai"
