@@ -20,6 +20,7 @@ def create_api_tool_executor_node(medical_api_tools: MedicalApiTools):
         tools=[
             medical_api_tools.get_available_specialties,
             medical_api_tools.get_professionals_by_specialty,
+            medical_api_tools.check_availability,
         ]
     )
 
@@ -42,6 +43,7 @@ def create_tool_calling_agent_node(
     tools = [
         medical_api_tools.get_available_specialties,
         medical_api_tools.get_professionals_by_specialty,
+        medical_api_tools.check_availability,
     ]
     llm_with_tools = llm_chat_client.bind_tools(tools)
 
@@ -49,10 +51,13 @@ def create_tool_calling_agent_node(
         [
             (
                 "system",
-                "Você é um assistente prestativo. Você tem acesso a ferramentas para buscar informações sobre especialidades médicas e profissionais. "
-                "Use as ferramentas quando o usuário perguntar sobre especialidades disponíveis ou profissionais de uma especialidade específica. "
-                "Se a pergunta não puder ser respondida com as ferramentas, responda diretamente da melhor forma possível. "
-                "Se uma ferramenta for chamada, você receberá o resultado dela e então deverá formular uma resposta final para o usuário com base nesse resultado.",
+                "Você é um assistente prestativo de uma clínica médica. Você tem acesso a ferramentas para buscar informações sobre especialidades médicas, profissionais e datas disponíveis na agenda deles. "
+                "\n\nINSTRUÇÕES IMPORTANTES:"
+                "\n- Se o usuário mencionar APENAS um nome de especialidade (como 'Cardiologia', 'Pediatria', 'Ortopedia'), automaticamente use a ferramenta 'get_professionals_by_specialty' para mostrar os profissionais dessa especialidade."
+                "\n- Use a ferramenta 'check_availability' quando o usuário perguntar sobre datas ou horários para um profissional específico."
+                "\n- Use 'get_available_specialties' quando perguntarem quais especialidades a clínica tem."
+                "\n- Seja proativo: se o usuário escolhe uma especialidade, mostre automaticamente os profissionais disponíveis sem perguntar se ele quer ver."
+                "\n\nSe uma ferramenta for chamada, você receberá o resultado dela e então deverá formular uma resposta final para o usuário com base nesse resultado.",
             ),
             MessagesPlaceholder(variable_name="messages"),
         ]

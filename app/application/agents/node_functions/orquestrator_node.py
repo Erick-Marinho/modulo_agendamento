@@ -3,6 +3,8 @@ import logging
 from app.application.agents.state.message_agent_state import MessageAgentState
 from app.infrastructure.services.llm.llm_factory import LLMFactory
 from langchain_core.messages import HumanMessage
+from app.domain.sheduling_details import SchedulingDetails
+from langchain_core.messages import BaseMessage
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +16,29 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
     Nó orquestrador que classifica a intenção do usuário e define o próximo passo.
     """
     logger.info(f"--- Executando nó orquestrador ---")
+
+    messages = state.get("messages", [])
+    conversation_history_str = _format_conversation_history_for_prompt(messages)
+
+    existing_details = state.get("extracted_scheduling_details")
+
+    llm_service = LLMFactory.create_llm_service("openai")
+    new_details = llm_service.extract_scheduling_details(conversation_history_str)
+
+    updated_details = _merge_scheduling_details(existing_details, new_details) # Igualmente, mova a função _merge_scheduling_details
+
+    # Atualiza o estado imediatamente
+    state["extracted_scheduling_details"] = updated_details
+    logger.info(f"Orquestrador atualizou os detalhes: {updated_details}")
+
+    # Agora, com o estado atualizado, vamos decidir para onde ir.
+    if updated_details and updated_details.professional_name and not updated_details.date_preference:
+        logger.info(f"Profissional '{updated_details.professional_name}' definido, mas data não. Direcionando para `api_query` para usar `check_availability`.")
+        return {
+            **state,
+            "next_step": AGENT_TOOL_CALLER_NODE_NAME, # Nome do nó que chama as tools
+            "conversation_context": "api_interaction",
+        }
 
     current_next_step = state.get("next_step", "")
     if current_next_step == "awaiting_final_confirmation":
@@ -62,7 +87,6 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
             "conversation_context": "scheduling_flow",
         }
 
-    messages = state.get("messages", [])
     last_human_message_content = None
     for msg in reversed(messages):
         if isinstance(msg, HumanMessage):
@@ -100,6 +124,7 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
             "greeting",
             "farewell",
             "api_query",
+            "specialty_selection",
             "other",
             "unclear",
         ]
@@ -116,6 +141,7 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
             "greeting": "greeting",
             "farewell": "farewell",
             "api_query": AGENT_TOOL_CALLER_NODE_NAME,
+            "specialty_selection": AGENT_TOOL_CALLER_NODE_NAME,
             "other": "other",
             "unclear": "fallback_node",
         }
@@ -125,7 +151,7 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
         new_conversation_context = classification
         if classification in ["scheduling", "scheduling_info"]:
             new_conversation_context = "scheduling_flow"
-        elif classification == "api_query":
+        elif classification in ["api_query", "specialty_selection"]:
             new_conversation_context = "api_interaction"
 
         logger.info(
@@ -146,3 +172,30 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
             "next_step": "fallback_node",
             "conversation_context": "system_error",
         }
+
+
+def _format_conversation_history_for_prompt(messages: list[BaseMessage], max_messages: int = 10) -> str:
+    if not messages:
+        return "Nenhuma conversa ainda"
+    recent_messages = messages[-max_messages:]
+    formatted_history = []
+    for msg in recent_messages:
+        role = "Usuário" if isinstance(msg, HumanMessage) else "Assistente"
+        formatted_history.append(f"{role}: {msg.content}")
+    return "\n".join(formatted_history)
+
+def _merge_scheduling_details(existing: SchedulingDetails, new: SchedulingDetails) -> SchedulingDetails:
+    if not existing:
+        return new
+    if not new:
+        return existing
+
+    # Lógica de mesclagem: O novo valor (extraído da conversa mais recente) tem prioridade.
+    merged = SchedulingDetails(
+        professional_name=new.professional_name or existing.professional_name,
+        specialty=new.specialty or existing.specialty,
+        date_preference=new.date_preference or existing.date_preference,
+        time_preference=new.time_preference or existing.time_preference,
+        service_type=new.service_type or existing.service_type,
+    )
+    return merged

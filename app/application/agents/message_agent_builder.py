@@ -67,7 +67,8 @@ class MessageAgentBuilder:
 
         # 3. Tools
         self.medical_api_tools = MedicalApiTools(
-            medical_repository=self.apphealth_repository
+            medical_repository=self.apphealth_repository,
+            api_client=self.apphealth_api_client
         )
 
         self._build_graph()

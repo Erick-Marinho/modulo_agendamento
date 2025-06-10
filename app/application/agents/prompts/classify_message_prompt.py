@@ -12,6 +12,7 @@ CLASSIFY_MESSAGE_TEMPLATE = ChatPromptTemplate.from_template(
     - "greeting": Cumprimentos iniciais como "oi", "olá", "bom dia", "boa tarde".
     - "farewell": Despedidas como "tchau", "obrigado", "até logo", "encerrar".
     - "api_query": Perguntas diretas sobre listagem de especialidades da clínica ou busca por profissionais de uma especialidade específica, que podem ser respondidas por uma busca em um sistema externo.
+    - "specialty_selection": Quando o usuário responde com apenas um nome de especialidade após ser mostrada uma lista de especialidades (ex: "Cardiologia", "Pediatria").
     - "other": Perguntas gerais sobre a clínica, endereço, funcionamento que NÃO sejam sobre listagem de especialidades ou profissionais.
     - "unclear": Mensagens confusas ou incompreensíveis.
 
@@ -19,9 +20,10 @@ CLASSIFY_MESSAGE_TEMPLATE = ChatPromptTemplate.from_template(
     1. Se o usuário está claramente iniciando um agendamento: "scheduling"
     2. Se está respondendo a uma pergunta sobre agendamento: "scheduling_info"  
     3. Se está pedindo para listar especialidades ou profissionais: "api_query"
-    4. Seja específico - não confunda saudação com início de agendamento.
-    5. Na dúvida entre "scheduling" e "scheduling_info", escolha "scheduling".
-    6. Se a pergunta é sobre "quais especialidades tem?" ou "liste os médicos de X especialidade", use "api_query".
+    4. Se responde com apenas uma especialidade (como "Cardiologia") após ver uma lista: "specialty_selection"
+    5. Seja específico - não confunda saudação com início de agendamento.
+    6. Na dúvida entre "scheduling" e "scheduling_info", escolha "scheduling".
+    7. Se a pergunta é sobre "quais especialidades tem?" ou "liste os médicos de X especialidade", use "api_query".
 
     EXEMPLOS:
     "Quero marcar uma consulta" → scheduling
@@ -30,6 +32,8 @@ CLASSIFY_MESSAGE_TEMPLATE = ChatPromptTemplate.from_template(
     "Amanhã às 14h" (resposta sobre horário) → scheduling_info
     "amanha a tarde" (resposta sobre data e turno) → scheduling_info
     "Pediatria" (resposta sobre especialidade) → scheduling_info
+    "Cardiologia" (após ver lista de especialidades) → specialty_selection
+    "Ortopedia" (após ver lista de especialidades) → specialty_selection
     "Quais especialidades vocês atendem?" → api_query
     "Tem cardiologista?" → api_query
     "Quais médicos são da área de pediatria?" → api_query
