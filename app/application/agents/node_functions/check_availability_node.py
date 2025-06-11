@@ -21,7 +21,9 @@ logger = logging.getLogger(__name__)
 async def _get_professional_id_by_name(
     professional_name: str, repository: AppHealthAPIMedicalRepository
 ) -> int | None:
-    # ... (código existente sem alterações)
+    """
+    Busca o ID de um profissional pelo nome com correspondência bidirecional melhorada.
+    """
     all_professionals = await repository.get_api_professionals()
 
     def normalize_name(name: str) -> str:
@@ -31,14 +33,31 @@ async def _get_professional_id_by_name(
 
     for prof in all_professionals:
         normalized_prof_name = normalize_name(prof.nome)
-        if normalized_input_name in normalized_prof_name:
+
+        # 🆕 LÓGICA BIDIRECIONAL MELHORADA
+        # Verifica correspondência nos dois sentidos
+        is_match = (
+            normalized_input_name in normalized_prof_name
+            or normalized_prof_name in normalized_input_name
+        )
+
+        # 🆕 CORRESPONDÊNCIA POR PALAVRAS-CHAVE
+        # Para casos como "Clara" → "Clara Joaquina" ou "João Silva" → "Dr. João"
+        input_words = set(normalized_input_name.split())
+        prof_words = set(normalized_prof_name.split())
+
+        # Se pelo menos 1 palavra do input está no nome do profissional
+        word_match = bool(input_words.intersection(prof_words))
+
+        if is_match or word_match:
             logger.info(
-                f"ID {prof.id} encontrado para o profissional "
-                f"'{professional_name}' (Match: '{prof.nome}')"
+                f"✅ ID {prof.id} encontrado para '{professional_name}' "
+                f"(Match: '{prof.nome}') - "
+                f"Método: {'substring' if is_match else 'palavras'}"
             )
             return prof.id
 
-    logger.warning(f"Nenhum ID encontrado para o profissional '{professional_name}'")
+    logger.warning(f"❌ Nenhum ID encontrado para o profissional '{professional_name}'")
     return None
 
 
