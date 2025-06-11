@@ -58,15 +58,52 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
         # 🔥 NOVA PRIORIDADE CRÍTICA: Verificar contextos específicos de agendamento PRIMEIRO
         conversation_context = state.get("conversation_context")
 
+        # ✅ CORREÇÃO CRÍTICA: Verificar se estamos no meio de um fluxo de agendamento ANTES da classificação
+        # Se tem detalhes existentes, campos faltantes ou contexto de agendamento, manter o fluxo
+        if (
+            existing_details
+            or existing_missing_fields
+            or existing_context == "scheduling_flow"
+        ):
+            logger.info(
+                f"🔄 MANTENDO CONTEXTO DE AGENDAMENTO - Classificação: '{classification}', mas continuando fluxo"
+            )
+            
+            # ✅ DETECÇÃO ESPECÍFICA: Resposta de turno (manha/tarde) quando há campos faltantes
+            if (
+                existing_missing_fields
+                and any("turno" in field for field in existing_missing_fields)
+                and last_human_message_content.strip().lower() in ["manha", "manhã", "tarde"]
+            ):
+                logger.info(
+                    f"🎯 PRIORIDADE ABSOLUTA: Usuário respondeu turno '{last_human_message_content}' - Forçando scheduling_info"
+                )
+                # Extrair dados forçadamente
+                new_details = llm_service.extract_scheduling_details(conversation_history_str)
+                updated_details = _merge_scheduling_details(existing_details, new_details)
+                
+                return {
+                    **state,
+                    "extracted_scheduling_details": updated_details,
+                    "next_step": "scheduling_info",
+                    "conversation_context": "scheduling_flow",
+                }
+            
+            # Sempre extrair dados se estamos no contexto de agendamento
+            new_details = llm_service.extract_scheduling_details(conversation_history_str)
+            updated_details = _merge_scheduling_details(existing_details, new_details)
+            state["extracted_scheduling_details"] = updated_details
+            logger.info(f"Dados de agendamento atualizados: {updated_details}")
+
+            # Continuar com lógica de agendamento...
+            
         # Se está aguardando seleção de horário, SEMPRE continuar no fluxo, independente da classificação
-        if conversation_context == "awaiting_slot_selection":
+        elif conversation_context == "awaiting_slot_selection":
             logger.info(
                 f"🔥 PRIORIDADE ABSOLUTA: Contexto 'awaiting_slot_selection' - Mantendo fluxo independente da classificação '{classification}'"
             )
             # Extrair detalhes atualizados (incluindo "manha"/"tarde")
-            new_details = llm_service.extract_scheduling_details(
-                conversation_history_str
-            )
+            new_details = llm_service.extract_scheduling_details(conversation_history_str)
             updated_details = _merge_scheduling_details(existing_details, new_details)
 
             return {
@@ -77,13 +114,11 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
             }
 
         # Se está aguardando nova data, continuar no fluxo
-        if conversation_context == "awaiting_new_date_selection":
+        elif conversation_context == "awaiting_new_date_selection":
             logger.info(
                 f"🔥 PRIORIDADE ABSOLUTA: Contexto 'awaiting_new_date_selection' - Mantendo fluxo"
             )
-            new_details = llm_service.extract_scheduling_details(
-                conversation_history_str
-            )
+            new_details = llm_service.extract_scheduling_details(conversation_history_str)
             updated_details = _merge_scheduling_details(existing_details, new_details)
 
             return {
@@ -93,24 +128,6 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
                 "conversation_context": "scheduling_flow",
             }
 
-        # APENAS DEPOIS verificar contexto de agendamento geral
-        if (
-            existing_details
-            or existing_missing_fields
-            or existing_context == "scheduling_flow"
-        ):
-            logger.info(
-                f"🔄 MANTENDO CONTEXTO DE AGENDAMENTO - Classificação: '{classification}', mas continuando fluxo"
-            )
-            # Sempre extrair dados se estamos no contexto de agendamento
-            new_details = llm_service.extract_scheduling_details(
-                conversation_history_str
-            )
-            updated_details = _merge_scheduling_details(existing_details, new_details)
-            state["extracted_scheduling_details"] = updated_details
-            logger.info(f"Dados de agendamento atualizados: {updated_details}")
-
-            # Continuar com lógica de agendamento...
         # Se NÃO estiver no contexto de agendamento E a classificação não for sobre agendamento
         elif classification not in ["scheduling", "scheduling_info"]:
             return {
@@ -120,9 +137,7 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
             }
         else:
             # APENAS se for sobre agendamento E não estamos em contexto, extrair dados
-            new_details = llm_service.extract_scheduling_details(
-                conversation_history_str
-            )
+            new_details = llm_service.extract_scheduling_details(conversation_history_str)
             updated_details = _merge_scheduling_details(existing_details, new_details)
             state["extracted_scheduling_details"] = updated_details
             logger.info(f"Dados de agendamento extraídos: {updated_details}")

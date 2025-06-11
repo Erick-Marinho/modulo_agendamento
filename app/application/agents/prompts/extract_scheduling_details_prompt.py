@@ -19,6 +19,8 @@ EXTRACT_SCHEDULING_DETAILS_TEMPLATE = ChatPromptTemplate.from_template(
     7. ✅ NOVA REGRA - Para "specific_time": Extraia horários específicos mencionados pelo usuário.
         - "8", "as 8", "às 8" → "08:00"
         - "8:30", "8h30", "oito e meia" → "08:30"  
+        - "8 e 30", "8 e trinta", "oito e trinta" → "08:30"
+        - "9 e 15", "nove e quinze" → "09:15"
         - "14h", "às 14", "2 da tarde" → "14:00"
         - "15:30", "3:30 da tarde" → "15:30"
         - Se o usuário mencionar apenas turno genérico ("manhã", "tarde"), use null para specific_time.
@@ -59,6 +61,12 @@ EXTRACT_SCHEDULING_DETAILS_TEMPLATE = ChatPromptTemplate.from_template(
     Conversa: "As 8 e 30"
     → {{ "professional_name": null, "specialty": null, "date_preference": null, "time_preference": "manha", "specific_time": "08:30", "service_type": null }}
     
+    Conversa: "8 e 30"
+    → {{ "professional_name": null, "specialty": null, "date_preference": null, "time_preference": "manha", "specific_time": "08:30", "service_type": null }}
+
+    Conversa: "9 e 15"
+    → {{ "professional_name": null, "specialty": null, "date_preference": null, "time_preference": "manha", "specific_time": "09:15", "service_type": null }}
+
     Conversa: "08:30"
     → {{ "professional_name": null, "specialty": null, "date_preference": null, "time_preference": "manha", "specific_time": "08:30", "service_type": null }}
 
