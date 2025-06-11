@@ -1,6 +1,8 @@
 import os
+import re
 import sys
 import urllib.parse
+from urllib.parse import quote_plus
 
 from pymongo import MongoClient
 from pymongo.errors import PyMongoError
@@ -20,6 +22,68 @@ except ImportError:
         "Certifique-se de que o script está na pasta 'scripts' na raiz do projeto."
     )
     sys.exit(1)
+
+
+def escape_mongodb_uri(uri: str) -> str:
+    """
+    Corrige a URI do MongoDB aplicando URL encoding adequado
+    ao nome de usuário e senha conforme RFC 3986.
+    Utiliza regex para extrair corretamente as credenciais, mesmo
+    quando a senha contém caracteres especiais como '@'.
+    """
+    try:
+        # Padrão regex para extrair componentes da URI do MongoDB
+        # mongodb://[username:password@]host[:port][/database][?options]
+        pattern = (
+            r"^mongodb://(?:([^:@]+):([^@]+)@)?([^:/?]+)(?::(\d+))?(/[^?]*)?(?:\?(.*))?$"
+        )
+
+        match = re.match(pattern, uri)
+        if not match:
+            console = Console()
+            console.print(
+                "⚠️  URI do MongoDB não reconhecida, usando formato original",
+                style="yellow",
+            )
+            return uri
+
+        username, password, hostname, port, path, query = match.groups()
+
+        # Se não há credenciais, retorna a URI original
+        if not username:
+            return uri
+
+        # Aplica URL encoding nas credenciais
+        escaped_username = quote_plus(username)
+        escaped_password = quote_plus(password) if password else ""
+
+        # Reconstrói a URI com as credenciais escapadas
+        if escaped_password:
+            auth_part = f"{escaped_username}:{escaped_password}@"
+        else:
+            auth_part = f"{escaped_username}@"
+
+        # Reconstrói a URI completa
+        escaped_uri = f"mongodb://{auth_part}{hostname}"
+
+        if port:
+            escaped_uri += f":{port}"
+
+        if path:
+            escaped_uri += path
+        else:
+            escaped_uri += "/"  # Adiciona '/' se não há path
+
+        if query:
+            escaped_uri += f"?{query}"
+
+        return escaped_uri
+
+    except Exception as e:
+        console = Console()
+        console.print(f"❌ Erro ao processar URI do MongoDB: {e}", style="bold red")
+        console.print("Usando URI original (pode causar problemas de conexão)")
+        return uri
 
 
 def clean_mongo_collections():
@@ -49,7 +113,15 @@ def clean_mongo_collections():
 
     try:
         console.print("\nConectando ao MongoDB...", style="italic")
-        with MongoClient(settings.MONGODB_URI, serverSelectionTimeoutMS=5000) as client:
+
+        # Aplica escape adequado na URI do MongoDB
+        escaped_uri = escape_mongodb_uri(settings.MONGODB_URI)
+
+        # Mostra versão mascarada da URI para debug (ocultando credenciais)
+        masked_uri = re.sub(r"://[^@]+@", "://***:***@", escaped_uri)
+        console.print(f"URI processada: {masked_uri}", style="dim")
+
+        with MongoClient(escaped_uri, serverSelectionTimeoutMS=5000) as client:
             client.admin.command("ping")  # Testa a conexão
             db = client[settings.MONGODB_DB_NAME]
             console.print("✅ Conexão estabelecida com sucesso!\n", style="green")

@@ -199,43 +199,142 @@ def _log_debug_info(
 
 def _parse_date_fallback(user_preference: str, current_date: datetime) -> Optional[str]:
     """
-    Função de fallback para traduzir datas simples quando o LLM falha.
+    Função de fallback melhorada para parsing de datas quando o LLM falhar.
     """
-    user_preference_lower = user_preference.lower().strip()
+    if not user_preference:
+        return None
 
-    # Extrair número do "dia X"
+    user_preference_lower = user_preference.lower().strip()
+    logger.info(
+        f"Fallback processando: '{user_preference}' (data atual: {current_date.strftime('%Y-%m-%d')})"
+    )
+
+    # Extrair "dia X" com regex mais robusta
     import re
 
     day_match = re.search(r"dia\s+(\d{1,2})", user_preference_lower)
     if day_match:
-        day = int(day_match.group(1))
-        if 1 <= day <= 31:  # Validação básica
-            # Se o dia já passou no mês atual, usar próximo mês
-            current_month = current_date.month
+        try:
+            day = int(day_match.group(1))
+
+            # Validação básica de dia (1-31)
+            if not (1 <= day <= 31):
+                logger.warning(f"Dia inválido: {day}")
+                return None
+
             current_year = current_date.year
+            current_month = current_date.month
+            current_day = current_date.day
+
+            logger.info(
+                f"Extraído dia: {day}, hoje é dia {current_day} de {current_month}/{current_year}"
+            )
+
+            # 🔥 LÓGICA CORRIGIDA: Se o dia ainda não chegou este mês, usar mês atual
+            if day > current_day:
+                logger.info(f"Dia {day} ainda não chegou este mês, usando mês atual")
+                try:
+                    target_date = datetime(current_year, current_month, day)
+                    result = target_date.strftime("%Y-%m-%d")
+                    logger.info(f"Fallback resultado (mês atual): {result}")
+                    return result
+                except ValueError:
+                    # Dia não existe neste mês (ex: 31 de fevereiro)
+                    logger.info(
+                        f"Dia {day} não existe em {current_month}/{current_year}, tentando próximo mês"
+                    )
+                    pass
+
+            # Se o dia já passou ou não existe neste mês, usar próximo mês
+            if current_month == 12:
+                next_year = current_year + 1
+                next_month = 1
+            else:
+                next_year = current_year
+                next_month = current_month + 1
 
             try:
-                target_date = datetime(current_year, current_month, day)
-                if target_date < current_date:
-                    # Dia já passou, ir para próximo mês
-                    if current_month == 12:
-                        target_date = datetime(current_year + 1, 1, day)
-                    else:
-                        target_date = datetime(current_year, current_month + 1, day)
-
-                return target_date.strftime("%Y-%m-%d")
+                target_date = datetime(next_year, next_month, day)
+                result = target_date.strftime("%Y-%m-%d")
+                logger.info(f"Fallback resultado (próximo mês): {result}")
+                return result
             except ValueError:
-                # Dia inválido para o mês (ex: 31 de fevereiro)
+                logger.warning(f"Dia {day} não existe em {next_month}/{next_year}")
                 return None
+
+        except ValueError as e:
+            logger.warning(f"Erro ao processar dia: {e}")
+            return None
 
     # Tratar "hoje", "amanhã", etc.
     if "hoje" in user_preference_lower:
-        return current_date.strftime("%Y-%m-%d")
+        result = current_date.strftime("%Y-%m-%d")
+        logger.info(f"Fallback resultado (hoje): {result}")
+        return result
     elif "amanha" in user_preference_lower or "amanhã" in user_preference_lower:
         tomorrow = current_date + timedelta(days=1)
-        return tomorrow.strftime("%Y-%m-%d")
+        result = tomorrow.strftime("%Y-%m-%d")
+        logger.info(f"Fallback resultado (amanhã): {result}")
+        return result
 
+    logger.warning(f"Fallback não conseguiu interpretar: '{user_preference}'")
     return None
+
+
+def _validate_and_correct_translated_date(
+    user_preference: str, translated_date: str, current_date: datetime
+) -> str:
+    """
+    Valida se a data traduzida pelo LLM faz sentido e corrige se necessário.
+    """
+    if translated_date == "invalid_date" or not translated_date:
+        return translated_date
+
+    try:
+        # Parse da data traduzida
+        parsed_date = datetime.strptime(translated_date, "%Y-%m-%d")
+        current_month = current_date.month
+        current_day = current_date.day
+
+        # Extrair número do dia se for formato "dia X"
+        import re
+
+        day_match = re.search(r"dia\s+(\d{1,2})", user_preference.lower())
+
+        if day_match:
+            requested_day = int(day_match.group(1))
+
+            # Verificar se o LLM colocou no mês errado
+            if (
+                parsed_date.month != current_month
+                and requested_day > current_day
+                and requested_day <= 31
+            ):  # Dia ainda não chegou este mês
+
+                logger.warning(
+                    f"🔧 CORREÇÃO: LLM traduziu 'dia {requested_day}' para "
+                    f"{translated_date} (mês {parsed_date.month}), mas deveria ser mês atual ({current_month})"
+                )
+
+                # Tentar corrigir para o mês atual
+                try:
+                    corrected_date = datetime(
+                        current_date.year, current_month, requested_day
+                    )
+                    corrected_str = corrected_date.strftime("%Y-%m-%d")
+                    logger.info(f"🔧 Data corrigida: {corrected_str}")
+                    return corrected_str
+                except ValueError:
+                    logger.info(
+                        f"🔧 Dia {requested_day} não existe no mês {current_month}, mantendo tradução original"
+                    )
+                    return translated_date
+
+        return translated_date
+
+    except Exception as e:
+        logger.warning(f"Erro ao validar data traduzida: {e}")
+        return translated_date
 
 
 # --- O Nó Principal (VERSÃO ATUALIZADA) ---
@@ -276,6 +375,17 @@ async def check_availability_node(
             current_date=today.strftime("%Y-%m-%d"),
         )
         logger.info(f"🔍 DEBUG - Data traduzida pelo LLM: '{translated_date}'")
+
+        # 🆕 TENTATIVA 1.5: Validar e corrigir a tradução do LLM se necessário
+        if translated_date != "invalid_date":
+            corrected_date = _validate_and_correct_translated_date(
+                details.date_preference, translated_date, today
+            )
+            if corrected_date != translated_date:
+                logger.info(
+                    f"🔧 Data corrigida de '{translated_date}' para '{corrected_date}'"
+                )
+                translated_date = corrected_date
 
         # TENTATIVA 2: Se o LLM falhar, usar função de fallback
         if translated_date == "invalid_date":

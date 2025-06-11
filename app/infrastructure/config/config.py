@@ -1,7 +1,8 @@
+from typing import Optional
+
+from dotenv import load_dotenv
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from dotenv import load_dotenv
-from typing import Optional
 
 load_dotenv()
 
@@ -25,9 +26,7 @@ class Settings(BaseSettings):
     )
 
     # === MongoDB Configuration ===
-    MONGODB_URI: str = Field(
-        ..., env="MONGODB_URI", description="URI do MongoDB"
-    )
+    MONGODB_URI: str = Field(..., env="MONGODB_URI", description="URI do MongoDB")
     MONGODB_DB_NAME: str = Field(
         ...,
         env="MONGODB_DB_NAME",
@@ -87,6 +86,4 @@ if __name__ == "__main__":
     print(f"MongoDB URI: {settings.MONGODB_URI}")
     print(f"MongoDB DB: {settings.MONGODB_DB_NAME}")
     print(f"AppHealth URL: {settings.APPHEALTH_API_BASE_URL}")
-    print(
-        f"AppHealth Token: {mask_sensitive_data(settings.APPHEALTH_API_TOKEN)}"
-    )
+    print(f"AppHealth Token: {mask_sensitive_data(settings.APPHEALTH_API_TOKEN)}")
