@@ -13,7 +13,7 @@ class MessageRouter:
         Lê o campo 'next_step' do estado E verifica conversation_context.
         """
         next_step = state.get("next_step", "").lower()
-        conversation_context = state.get("conversation_context" or "").lower()
+        conversation_context = (state.get("conversation_context") or "").lower()
 
         logger.info(
             f"Roteando (from route_orquestrator) com base no next_step: '{next_step}', conversation_context: '{conversation_context}'"
