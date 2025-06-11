@@ -1,11 +1,12 @@
-from app.application.agents.state.message_agent_state import MessageAgentState
-from app.domain.sheduling_details import SchedulingDetails
-from app.infrastructure.services.llm.llm_factory import LLMFactory
-from app.application.interfaces.illm_service import ILLMService
-from langchain_core.messages import AIMessage, HumanMessage
-
 import logging
 from typing import List, Optional
+
+from langchain_core.messages import AIMessage, HumanMessage
+
+from app.application.agents.state.message_agent_state import MessageAgentState
+from app.application.interfaces.illm_service import ILLMService
+from app.domain.sheduling_details import SchedulingDetails
+from app.infrastructure.services.llm.llm_factory import LLMFactory
 
 logger = logging.getLogger(__name__)
 
@@ -32,12 +33,8 @@ def clarification_node(state: MessageAgentState) -> MessageAgentState:
     """
     logger.info("--- EXECUTANDO NÓ DE ESCLARECIMENTO ---")
 
-    current_messages: List[HumanMessage | AIMessage] = state.get(
-        "messages", []
-    )
-    details: Optional[SchedulingDetails] = state.get(
-        "extracted_scheduling_details"
-    )
+    current_messages: List[HumanMessage | AIMessage] = state.get("messages", [])
+    details: Optional[SchedulingDetails] = state.get("extracted_scheduling_details")
 
     if details is None:
         logger.warning(
@@ -58,8 +55,6 @@ def clarification_node(state: MessageAgentState) -> MessageAgentState:
         missing_fields.append("data de preferência")
     if not details.time_preference:
         missing_fields.append("turno de preferência (manhã ou tarde)")
-    if not details.service_type:
-        missing_fields.append("tipo de serviço")
     if not details.specialty:
         missing_fields.append("especialidade")
 
@@ -67,9 +62,7 @@ def clarification_node(state: MessageAgentState) -> MessageAgentState:
         logger.info(f"Informações de agendamento faltantes: {missing_fields}")
 
         service_type_info = (
-            details.service_type
-            if details.service_type
-            else "serviço desejado"
+            details.service_type if details.service_type else "serviço desejado"
         )
         missing_fields_str = _format_missing_fields_for_prompt(missing_fields)
 
@@ -84,13 +77,9 @@ def clarification_node(state: MessageAgentState) -> MessageAgentState:
                 date_preference=details.date_preference,
                 time_preference=details.time_preference,
             )
-            logger.info(
-                f"Pergunta de esclarecimento gerada: {ai_response_text}"
-            )
+            logger.info(f"Pergunta de esclarecimento gerada: {ai_response_text}")
         except Exception as e:
-            logger.error(
-                f"Erro ao gerar pergunta de esclarecimento via LLM: {e}"
-            )
+            logger.error(f"Erro ao gerar pergunta de esclarecimento via LLM: {e}")
             ai_response_text = f"Para continuarmos com o agendamento do(a) {service_type_info}, preciso de mais alguns detalhes: {missing_fields_str}. Poderia me informar, por favor?"
 
         current_messages.append(AIMessage(content=ai_response_text))

@@ -18,6 +18,7 @@ EXTRACT_SCHEDULING_DETAILS_TEMPLATE = ChatPromptTemplate.from_template(
         - Mesmo que o usuário forneça um horário específico (ex: 10:00h), se a palavra "manhã" ou "tarde" estiver presente, priorize a palavra.
         - Se o turno não for claramente especificado como manhã ou tarde, use null.
     7. Se uma informação não for mencionada ou estiver incerta, use null.
+    8. IMPORTANTE: Para "service_type", se não for especificado explicitamente pelo usuário, sempre use "consulta" como padrão.
    
     INFORMAÇÕES A EXTRAIR:
     - "professional_name": Nome do profissional (ex: "Dr. Silva", "Dra. Maria")

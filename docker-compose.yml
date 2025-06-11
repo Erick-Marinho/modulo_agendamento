@@ -5,14 +5,14 @@ services:
       dockerfile: Dockerfile
     container_name: agendamento_api
     restart: unless-stopped
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload 
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
     volumes:
       - .:/app
     ports:
-      - "8000:8000"
+      - '8000:8000'
     environment:
       # Dentro do Docker, usar nome do serviço
-      MONGODB_URI: mongodb://mongodb:27017
+      MONGODB_URI: mongodb://${MONGODB_USERNAME}:${MONGODB_PASSWORD}@mongodb:27017/agendamento_mongodb?authSource=admin
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       OPENAI_MODEL_NAME: ${OPENAI_MODEL_NAME:-gpt-4o-mini}
       OPENAI_TEMPERATURE: ${OPENAI_TEMPERATURE:-0.2}
@@ -25,15 +25,15 @@ services:
     container_name: agendamento_mongodb
     restart: unless-stopped
     ports:
-      - "27017:27017"  # Expor para acesso externo também
+      - '127.0.0.1:27017:27017' # Expor para acesso externo também
     volumes:
       - mongodb_data:/data/db
     environment:
-      MONGO_INITDB_ROOT_USERNAME: ""
-      MONGO_INITDB_ROOT_PASSWORD: ""
-    command: ["mongod", "--bind_ip_all", "--port", "27017"]
+      MONGO_INITDB_ROOT_USERNAME: ${MONGODB_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_PASSWORD}
+    command: ['mongod', '--bind_ip_all', '--port', '27017']
     healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')", "--quiet"]
+      test: ['CMD', 'mongosh', '--eval', "db.adminCommand('ping')", '--quiet']
       interval: 10s
       timeout: 5s
       retries: 5

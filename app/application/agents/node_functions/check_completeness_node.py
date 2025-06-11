@@ -1,6 +1,7 @@
-from app.application.agents.state.message_agent_state import MessageAgentState
-from typing import List
 import logging
+from typing import List
+
+from app.application.agents.state.message_agent_state import MessageAgentState
 
 logger = logging.getLogger(__name__)
 
@@ -45,8 +46,5 @@ def _get_missing_essential_fields(details) -> List[str]:
 
     if not details.time_preference:
         missing_fields.append("horário de preferência")
-
-    if not details.service_type:
-        missing_fields.append("tipo de serviço")
 
     return missing_fields

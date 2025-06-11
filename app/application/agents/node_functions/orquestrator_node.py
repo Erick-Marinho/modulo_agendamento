@@ -150,11 +150,9 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
             calculated_missing_fields.append("data de preferência")
         if not updated_details.time_preference:
             calculated_missing_fields.append("turno de preferência")
-        if not updated_details.service_type:
-            calculated_missing_fields.append("tipo de serviço")
 
     # Se extraiu informações de agendamento e faltam campos críticos, vai para clarification
-    if updated_details and updated_details.service_type and calculated_missing_fields:
+    if updated_details and calculated_missing_fields:
         logger.info(
             f"Agendamento detectado com campos faltando: {calculated_missing_fields}. Direcionando para clarification."
         )
