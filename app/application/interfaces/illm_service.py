@@ -10,12 +10,20 @@ class ILLMService(ABC):
     def classify_message(self, message: str) -> str:
         """
         Classifica a mensagem do usuário em uma categoria de agendamento.
+        """
+        pass
 
+    @abstractmethod
+    def classify_message_with_context(self, message: str, context: str) -> str:
+        """
+        Classifica a mensagem do usuário usando contexto da conversa.
+        
         Args:
-            message: A mensagem do usuário contendo os detalhes de agendamento.
-
+            message: A mensagem atual do usuário
+            context: Contexto recente da conversa
+            
         Returns:
-            A categoria da mensagem.
+            A categoria da mensagem
         """
         pass
 
@@ -139,19 +147,6 @@ class ILLMService(ABC):
 
         Returns:
             Mensagem de fallback humanizada.
-        """
-        pass
-
-    @abstractmethod
-    def generate_confirmation_message(self, details: SchedulingDetails) -> str:
-        """
-        Gera uma mensagem de confirmação dos dados de agendamento.
-
-        Args:
-            details: Detalhes do agendamento coletados.
-
-        Returns:
-            Mensagem de confirmação formatada.
         """
         pass
 

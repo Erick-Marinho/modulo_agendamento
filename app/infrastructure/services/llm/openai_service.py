@@ -45,22 +45,24 @@ class OpenAIService(ILLMService):
             temperature=settings.OPENAI_TEMPERATURE,
         )
 
-    def classify_message(self, user_message: str) -> str:
-        """
-        Classifica a mensagem do usuário em uma das categorias:
-        - "agendamento"
-        - "cancelamento"
-        - "reagendamento"
-        - "outro"
+    def classify_message(self, message: str) -> str:
+        """Classificação básica sem contexto (backward compatibility)"""
+        return self.classify_message_with_context(message, "")
 
+    def classify_message_with_context(self, message: str, context: str = "") -> str:
+        """
+        Classifica a mensagem do usuário usando contexto da conversa.
         """
         chain = CLASSIFY_MESSAGE_TEMPLATE | self.client
         try:
-            llm_response = chain.invoke({"user_query": user_message})
-            return llm_response.content
+            llm_response = chain.invoke({
+                "user_query": message,
+                "conversation_context": context or "Nenhum contexto anterior disponível."
+            })
+            return llm_response.content.strip()
         except Exception as e:
-            logger.error(f"Erro ao classificar mensagem: {e}")
-            return None
+            logger.error(f"Erro ao classificar mensagem com contexto: {e}")
+            return "unclear"
 
     def extract_scheduling_details(
         self, user_message: str
