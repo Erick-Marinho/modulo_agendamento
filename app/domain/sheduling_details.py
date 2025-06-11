@@ -8,4 +8,5 @@ class SchedulingDetails(BaseModel):
     specialty: Optional[str] = None
     date_preference: Optional[str] = None
     time_preference: Optional[str] = None
+    specific_time: Optional[str] = None
     service_type: Optional[str] = "consulta"

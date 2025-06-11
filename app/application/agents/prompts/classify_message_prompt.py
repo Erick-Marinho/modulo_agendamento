@@ -65,6 +65,20 @@ CLASSIFY_MESSAGE_TEMPLATE = ChatPromptTemplate.from_template(
     "tarde" (em resposta a pergunta sobre turno) → scheduling_info
     "08:00" (como resposta de horário) → scheduling_info
 
+    🎯 **CASOS ESPECIAIS PARA scheduling_info:**
+    - "Com a profissional clara" → scheduling_info
+    - "Com o dr. silva" → scheduling_info  
+    - "Quero agendar com clara" → scheduling_info
+    - "Preciso de consulta com a doutora maria" → scheduling_info
+    - "Consulta com o profissional joão" → scheduling_info
+
+    ⚠️ **REGRA PARA NOMES DE PROFISSIONAIS**: Qualquer frase que contenha:
+    - "com [nome]"
+    - "com a/o profissional [nome]" 
+    - "com dr./dra. [nome]"
+    - "com o/a doutor/doutora [nome]"
+    DEVE ser classificada como "scheduling_info".
+
     Responda APENAS com o nome da categoria (sem aspas, sem explicação):
     """
 )

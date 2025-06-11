@@ -253,6 +253,7 @@ def _merge_scheduling_details(existing, new):
         specialty=existing.specialty or new.specialty,
         date_preference=existing.date_preference or new.date_preference,
         time_preference=existing.time_preference or new.time_preference,
+        specific_time=new.specific_time or existing.specific_time,
         service_type=existing.service_type or new.service_type,
     )
 

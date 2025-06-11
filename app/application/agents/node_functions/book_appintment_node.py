@@ -8,6 +8,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 
 from app.application.agents.state.message_agent_state import MessageAgentState
 from app.domain.entities.medical_professional import ApiMedicalProfessional
+from app.domain.sheduling_details import SchedulingDetails
 from app.infrastructure.clients.apphealth_api_client import AppHealthAPIClient
 from app.infrastructure.repositories.apphealth_api_medical_repository import (
     AppHealthAPIMedicalRepository,
@@ -102,7 +103,9 @@ async def _get_specialty_id_by_name(
 
 
 async def book_appointment_node(state: MessageAgentState) -> MessageAgentState:
-    logger.info("--- Executando nó book_appointment (Versão Corrigida) ---")
+    logger.info(
+        "--- Executando nó book_appointment (Versão Corrigida com specific_time) ---"
+    )
     current_messages = state.get("messages", [])
     details = state.get("extracted_scheduling_details")
 
@@ -113,23 +116,43 @@ async def book_appointment_node(state: MessageAgentState) -> MessageAgentState:
 
         logger.info(f"Detalhes do agendamento: {details}")
 
-        # 2. Extrair horário escolhido da última mensagem do usuário
-        last_user_message = next(
-            (
-                msg.content
-                for msg in reversed(current_messages)
-                if isinstance(msg, HumanMessage)
-            ),
-            None,
-        )
+        # 🕵️ DEBUG DETALHADO
+        logger.info("=== DEBUG HORÁRIO ===")
+        logger.info(f"Tipo de details: {type(details)}")
+        logger.info(f"É dict? {isinstance(details, dict)}")
 
-        chosen_time = _extract_time_from_message(last_user_message)
-        if not chosen_time:
-            raise ValueError(
-                f"Não foi possível extrair um horário da mensagem: '{last_user_message}'"
+        if isinstance(details, dict):
+            logger.info(
+                f"specific_time no dict: {details.get('specific_time', 'NÃO ENCONTRADO')}"
+            )
+            chosen_time = details.get("specific_time")
+        else:
+            logger.info(f"hasattr specific_time? {hasattr(details, 'specific_time')}")
+            logger.info(
+                f"specific_time valor: {getattr(details, 'specific_time', 'NÃO ENCONTRADO')}"
+            )
+            chosen_time = (
+                details.specific_time if hasattr(details, "specific_time") else None
             )
 
-        logger.info(f"Horário escolhido extraído: {chosen_time}")
+        logger.info(f"chosen_time ANTES do fallback: {chosen_time}")
+
+        # Se não encontrou, usar fallback
+        if not chosen_time:
+            last_user_message = next(
+                (
+                    msg.content
+                    for msg in reversed(current_messages)
+                    if isinstance(msg, HumanMessage)
+                ),
+                None,
+            )
+            logger.info(f"Última mensagem do usuário: '{last_user_message}'")
+            chosen_time = _extract_time_from_message(last_user_message)
+            logger.info(f"Horário extraído da mensagem: {chosen_time}")
+
+        logger.info(f"🎯 HORÁRIO FINAL: {chosen_time}")
+        logger.info("=====================")
 
         # 3. Extrair data das mensagens da conversa
         appointment_date = _extract_date_from_conversation(current_messages)
@@ -207,13 +230,18 @@ async def book_appointment_node(state: MessageAgentState) -> MessageAgentState:
         )
         response_text = f"Agendamento confirmado com sucesso para o dia {date_formatted} às {chosen_time} com {details.professional_name}. Obrigado por utilizar nossos serviços!"
 
-        # 11. Atualizar estado com horário escolhido
-        details_dict = details.__dict__ if hasattr(details, "__dict__") else details
-        updated_details = {
-            **details_dict,
-            "time_preference": details.time_preference,
-            "specific_time": chosen_time,
-        }
+        # ✅ 11. Atualizar estado com horário escolhido (incluindo specific_time)
+        # Converter SchedulingDetails para dict se necessário
+        if hasattr(details, "model_dump"):
+            updated_details = SchedulingDetails(
+                **{**details.model_dump(), "specific_time": chosen_time}
+            )
+        else:
+            # Fallback para quando details já é um dict
+            details_dict = details if isinstance(details, dict) else details.__dict__
+            updated_details = SchedulingDetails(
+                **{**details_dict, "specific_time": chosen_time}
+            )
 
         final_message = AIMessage(content=response_text)
         return {

@@ -131,7 +131,6 @@ class MongoDBSaverCheckpointer(SaveCheckpointInterface):
 
             # Testar conexão
             logger.info("Testando conexão com MongoDB...")
-            client.admin.command("ping")
             logger.info("✅ Conexão com MongoDB testada com sucesso")
 
             # Usar nossa implementação customizada

@@ -366,6 +366,7 @@ def _merge_scheduling_details(
         specialty=new.specialty or existing.specialty,
         date_preference=new.date_preference or existing.date_preference,
         time_preference=new.time_preference or existing.time_preference,
+        specific_time=new.specific_time or existing.specific_time,
         service_type=new.service_type or existing.service_type,
     )
     return merged
