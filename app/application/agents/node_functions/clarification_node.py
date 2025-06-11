@@ -92,4 +92,4 @@ def clarification_node(state: MessageAgentState) -> MessageAgentState:
         logger.info(
             "Todos os detalhes essenciais para o agendamento foram coletados e estão presentes."
         )
-        return {**state, "next_step": "PROCEED_TO_VALIDATION"}
+        return {**state, "next_step": "check_availability_node"}

@@ -29,7 +29,7 @@ def check_completeness_node(state: MessageAgentState) -> MessageAgentState:
         }
     else:
         logger.info("Todos os campos essenciais estão presentes")
-        return {**state, "next_step": "validate_and_confirm"}
+        return {**state, "next_step": "check_availability_node", "missing_fields": []}
 
 
 def _get_missing_essential_fields(details) -> List[str]:

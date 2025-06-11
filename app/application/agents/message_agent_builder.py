@@ -173,7 +173,7 @@ class MessageAgentBuilder:
             self.router.route_after_completeness_check,
             {
                 "clarification_node": "clarification_node",
-                "validate_and_confirm_node": "validate_and_confirm_node",
+                "check_availability_node": "check_availability_node",
             },
         )
 
@@ -212,8 +212,8 @@ class MessageAgentBuilder:
             self.router.decide_after_clarification,
             {
                 "END_AWAITING_USER": END,
-                "PROCEED_TO_VALIDATION": "validate_and_confirm_node",
-                # "PROCEED_TO_VALIDATION": END,
+                "book_appointment_node": "book_appointment_node",
+                "check_availability_node": "check_availability_node",
                 "DEFAULT_END": END,
             },
         )

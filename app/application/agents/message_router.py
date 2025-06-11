@@ -36,6 +36,8 @@ class MessageRouter:
             "farewell": "farewell_node",
             "other": "other_node",
             "clarification": "clarification_node",
+            "api_query": AGENT_TOOL_CALLER_NODE_NAME,
+            "specialty_selection": AGENT_TOOL_CALLER_NODE_NAME,
             AGENT_TOOL_CALLER_NODE_NAME.lower(): AGENT_TOOL_CALLER_NODE_NAME,
             "fallback_node": "fallback_node",
             "book_appointment_node": "book_appointment_node",
@@ -116,6 +118,10 @@ class MessageRouter:
 
         if next_step == "clarification":
             return "clarification_node"
+        elif next_step == "book_appointment_node":
+            return "book_appointment_node"
+        elif next_step == "check_availability_node":
+            return "check_availability_node"
         elif next_step == "validate_and_confirm":
             return "validate_and_confirm_node"
         else:

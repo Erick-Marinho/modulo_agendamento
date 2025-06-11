@@ -2,15 +2,16 @@ import logging
 import re
 from datetime import datetime
 from typing import List
-from langchain_core.messages import AIMessage, HumanMessage
+
 import httpx
+from langchain_core.messages import AIMessage, HumanMessage
 
 from app.application.agents.state.message_agent_state import MessageAgentState
+from app.domain.entities.medical_professional import ApiMedicalProfessional
 from app.infrastructure.clients.apphealth_api_client import AppHealthAPIClient
 from app.infrastructure.repositories.apphealth_api_medical_repository import (
     AppHealthAPIMedicalRepository,
 )
-from app.domain.entities.medical_professional import ApiMedicalProfessional
 
 logger = logging.getLogger(__name__)
 
@@ -51,10 +52,7 @@ async def _get_professional_id_by_name(
     """Busca o ID de um profissional pelo nome de forma flexível."""
     all_professionals = await repository.get_api_professionals()
     normalized_input_name = (
-        professional_name.lower()
-        .replace("dr.", "")
-        .replace("dra.", "")
-        .strip()
+        professional_name.lower().replace("dr.", "").replace("dra.", "").strip()
     )
     for prof in all_professionals:
         normalized_prof_name = (
@@ -65,9 +63,7 @@ async def _get_professional_id_by_name(
                 f"ID {prof.id} encontrado para o profissional '{professional_name}' (Match: '{prof.nome}')"
             )
             return prof.id
-    logger.warning(
-        f"Nenhum ID encontrado para o profissional '{professional_name}'"
-    )
+    logger.warning(f"Nenhum ID encontrado para o profissional '{professional_name}'")
     return None
 
 
@@ -79,10 +75,7 @@ async def _get_specialty_id_by_name(
         return None
     all_specialties = await repository.get_all_api_specialties()
     for spec in all_specialties:
-        if (
-            spec.especialidade.strip().lower()
-            == specialty_name.strip().lower()
-        ):
+        if spec.especialidade.strip().lower() == specialty_name.strip().lower():
             return spec.id
     return None
 
@@ -98,9 +91,7 @@ async def book_appointment_node(state: MessageAgentState) -> MessageAgentState:
     try:
         # 1. Validações iniciais
         if not details:
-            raise ValueError(
-                "Detalhes do agendamento não encontrados no estado."
-            )
+            raise ValueError("Detalhes do agendamento não encontrados no estado.")
 
         logger.info(f"Detalhes do agendamento: {details}")
 
@@ -144,13 +135,9 @@ async def book_appointment_node(state: MessageAgentState) -> MessageAgentState:
                 f"Não foi possível encontrar o ID para o profissional '{details.professional_name}'"
             )
 
-        specialty_id = await _get_specialty_id_by_name(
-            details.specialty, repository
-        )
+        specialty_id = await _get_specialty_id_by_name(details.specialty, repository)
 
-        logger.info(
-            f"Professional ID: {professional_id}, Specialty ID: {specialty_id}"
-        )
+        logger.info(f"Professional ID: {professional_id}, Specialty ID: {specialty_id}")
 
         # 6. Calcular hora de fim (1 hora após o início)
         start_hour, start_minute = chosen_time.split(":")
@@ -189,29 +176,21 @@ async def book_appointment_node(state: MessageAgentState) -> MessageAgentState:
             try:
                 remove_tag_url = f"https://n8n-server.apphealth.com.br/webhook/remove-tag?phone={phone_number}"
                 async with httpx.AsyncClient() as client:
-                    remove_response = await client.get(
-                        remove_tag_url, timeout=5.0
-                    )
+                    remove_response = await client.get(remove_tag_url, timeout=5.0)
                     remove_response.raise_for_status()
-                    logger.info(
-                        f"Tag removida com sucesso para {phone_number}"
-                    )
+                    logger.info(f"Tag removida com sucesso para {phone_number}")
             except Exception as tag_error:
-                logger.warning(
-                    f"Erro ao remover tag para {phone_number}: {tag_error}"
-                )
+                logger.warning(f"Erro ao remover tag para {phone_number}: {tag_error}")
                 # Não falha o agendamento se não conseguir remover a tag
 
         # 10. Gerar mensagem de sucesso
-        date_formatted = datetime.strptime(
-            appointment_date, "%Y-%m-%d"
-        ).strftime("%d/%m/%Y")
-        response_text = f"Perfeito! Agendamento confirmado com sucesso para o dia {date_formatted} às {chosen_time} com {details.professional_name}. Obrigado por utilizar nossos serviços!"
+        date_formatted = datetime.strptime(appointment_date, "%Y-%m-%d").strftime(
+            "%d/%m/%Y"
+        )
+        response_text = f"Agendamento confirmado com sucesso para o dia {date_formatted} às {chosen_time} com {details.professional_name}. Obrigado por utilizar nossos serviços!"
 
         # 11. Atualizar estado com horário escolhido
-        details_dict = (
-            details.__dict__ if hasattr(details, "__dict__") else details
-        )
+        details_dict = details.__dict__ if hasattr(details, "__dict__") else details
         updated_details = {
             **details_dict,
             "time_preference": details.time_preference,
