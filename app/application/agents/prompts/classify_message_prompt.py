@@ -58,6 +58,13 @@ CLASSIFY_MESSAGE_TEMPLATE = ChatPromptTemplate.from_template(
 
     Mensagem do usuário: {user_query}
 
+    ⚠️ **CONTEXTO CRÍTICO**: Se o usuário responder apenas "manha", "manhã", "tarde" em resposta a uma pergunta sobre turno de preferência, classifique como "scheduling_info".
+    
+    EXEMPLOS CONTEXTUAIS:
+    "manha" (em resposta a pergunta sobre turno) → scheduling_info
+    "tarde" (em resposta a pergunta sobre turno) → scheduling_info
+    "08:00" (como resposta de horário) → scheduling_info
+
     Responda APENAS com o nome da categoria (sem aspas, sem explicação):
     """
 )

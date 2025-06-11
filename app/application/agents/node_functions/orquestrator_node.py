@@ -55,7 +55,45 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
                 "conversation_context": classification,
             }
 
-        # APENAS DEPOIS verificar contexto de agendamento
+        # 🔥 NOVA PRIORIDADE CRÍTICA: Verificar contextos específicos de agendamento PRIMEIRO
+        conversation_context = state.get("conversation_context")
+
+        # Se está aguardando seleção de horário, SEMPRE continuar no fluxo, independente da classificação
+        if conversation_context == "awaiting_slot_selection":
+            logger.info(
+                f"🔥 PRIORIDADE ABSOLUTA: Contexto 'awaiting_slot_selection' - Mantendo fluxo independente da classificação '{classification}'"
+            )
+            # Extrair detalhes atualizados (incluindo "manha"/"tarde")
+            new_details = llm_service.extract_scheduling_details(
+                conversation_history_str
+            )
+            updated_details = _merge_scheduling_details(existing_details, new_details)
+
+            return {
+                **state,
+                "extracted_scheduling_details": updated_details,
+                "next_step": "book_appointment_node",
+                "conversation_context": conversation_context,  # Manter contexto
+            }
+
+        # Se está aguardando nova data, continuar no fluxo
+        if conversation_context == "awaiting_new_date_selection":
+            logger.info(
+                f"🔥 PRIORIDADE ABSOLUTA: Contexto 'awaiting_new_date_selection' - Mantendo fluxo"
+            )
+            new_details = llm_service.extract_scheduling_details(
+                conversation_history_str
+            )
+            updated_details = _merge_scheduling_details(existing_details, new_details)
+
+            return {
+                **state,
+                "extracted_scheduling_details": updated_details,
+                "next_step": "scheduling_info",
+                "conversation_context": "scheduling_flow",
+            }
+
+        # APENAS DEPOIS verificar contexto de agendamento geral
         if (
             existing_details
             or existing_missing_fields
