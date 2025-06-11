@@ -146,10 +146,11 @@ class MessageRouter:
             logger.info("Check availability mostrou datas alternativas. Finalizando.")
             return "END"
 
-        # 🆕 Se tudo certo, continuar fluxo normal
+        # 🔥 CORREÇÃO CRÍTICA: NÃO finalizar quando está awaiting_slot_selection
+        # O fluxo deve continuar para aguardar a resposta do usuário
         if conversation_context == "awaiting_slot_selection":
-            logger.info("Check availability encontrou horários. Finalizando.")
-            return "END"
+            logger.info("Check availability encontrou horários. AGUARDANDO SELEÇÃO DO USUÁRIO.")
+            return "END"  # ✅ Isso está correto - termina aqui para aguardar input do usuário
 
         # Fluxo padrão - ir para agent_tool_caller se necessário
         if next_step == "agent_tool_caller":
