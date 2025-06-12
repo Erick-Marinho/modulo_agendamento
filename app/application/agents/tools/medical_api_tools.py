@@ -263,7 +263,7 @@ def create_check_availability_tool(
                             )
                         )
                         if not available_times_raw:
-                            # 🆕 RESPOSTA MODIFICADA: Em vez de perguntar, informar e buscar alternativas
+                            # 🔧 RESPOSTA CORRIGIDA: Buscar datas alternativas COM filtragem por turno
                             try:
                                 # Buscar datas alternativas disponíveis
                                 available_dates_raw = (
@@ -273,19 +273,46 @@ def create_check_availability_tool(
                                 )
 
                                 if available_dates_raw:
-                                    # Filtrar apenas datas futuras
-                                    future_dates = [
-                                        d["data"]
-                                        for d in available_dates_raw
-                                        if d["data"] >= now.strftime("%Y-%m-%d")
-                                    ]
+                                    # 🆕 NOVA LÓGICA: Filtrar datas por turno solicitado
+                                    dates_with_matching_period = []
+                                    
+                                    for d in available_dates_raw:
+                                        date_str = d["data"]
+                                        if date_str < now.strftime("%Y-%m-%d"):
+                                            continue
+                                        
+                                        # Verificar se esta data tem horários no turno solicitado
+                                        if time_period:
+                                            try:
+                                                times_raw = await api_client.get_available_times_from_api(
+                                                    professional_id, date_str
+                                                )
+                                                
+                                                # Verificar se tem horários no período solicitado
+                                                has_matching_period = False
+                                                for slot in times_raw:
+                                                    start_hour = int(slot["horaInicio"].split(":")[0])
+                                                    if time_period == "manha" and 5 <= start_hour < 12:
+                                                        has_matching_period = True
+                                                        break
+                                                    elif time_period == "tarde" and 12 <= start_hour < 18:
+                                                        has_matching_period = True
+                                                        break
+                                                
+                                                if has_matching_period:
+                                                    dates_with_matching_period.append(date_str)
+                                                    
+                                            except Exception as e:
+                                                logger.warning(f"Erro ao verificar horários para {date_str}: {e}")
+                                                continue
+                                        else:
+                                            # Se não especificou turno, incluir todas as datas
+                                            dates_with_matching_period.append(date_str)
 
-                                    if future_dates:
+                                    if dates_with_matching_period:
                                         # Formatar datas para exibição
                                         formatted_dates = []
-                                        for date_str in future_dates[
-                                            :6
-                                        ]:  # Mostrar até 6 datas
+                                        for date_str in dates_with_matching_period[:6]:  # Mostrar até 6 datas
                                             formatted_date = datetime.strptime(
                                                 date_str, "%Y-%m-%d"
                                             ).strftime("%d/%m")
@@ -300,13 +327,14 @@ def create_check_availability_tool(
 
                                         return ToolResult(
                                             status=ToolStatus.SUCCESS,
-                                            message=f"O {date} que você solicitou não possui horários disponíveis para {professional_name}{period_msg}.\n\nDatas disponíveis: {dates_list}\n\nQual data você prefere?",
+                                            message=f"O {date} que você solicitou não possui horários disponíveis para {professional_name}{period_msg}.\n\nDatas disponíveis{period_msg}: {dates_list}\n\nQual data você prefere?",
                                         ).message
 
-                                # Se não encontrou nenhuma data
+                                # Se não encontrou nenhuma data com o turno solicitado
+                                period_msg = f" no período da {time_period}" if time_period else ""
                                 return ToolResult(
                                     status=ToolStatus.NOT_FOUND,
-                                    message=f"Não encontrei horários disponíveis para {professional_name} no {date} nem em outras datas próximas. Gostaria de tentar outro período ou próximo mês?",
+                                    message=f"Não encontrei horários disponíveis para {professional_name} no {date}{period_msg} nem em outras datas próximas{period_msg}. Gostaria de tentar outro turno ou próximo mês?",
                                 ).message
 
                             except Exception as e:
@@ -356,7 +384,7 @@ def create_check_availability_tool(
                         # Se não conseguir extrair o dia, continua com a busca geral
                         pass
 
-            # Busca geral - mostra próximas datas disponíveis
+            # 🔧 CORREÇÃO: Busca geral com filtragem por turno
             available_dates_raw = await api_client.get_available_dates_from_api(
                 professional_id, now.month, now.year
             )
@@ -366,17 +394,62 @@ def create_check_availability_tool(
                     message=f"Não encontrei datas disponíveis para {professional_name} neste mês. Gostaria de verificar o próximo mês?",
                 ).message
 
-            # Limitar a quantidade de datas para não poluir a resposta
-            dates_to_show = [
-                d["data"] for d in available_dates_raw[:5]
-            ]  # Mostra as próximas 5 datas
+            # 🆕 NOVA LÓGICA: Filtrar datas que possuem horários no turno solicitado
+            dates_with_matching_period = []
+            
+            for date_info in available_dates_raw:
+                date_str = date_info["data"]
+                
+                # Pular datas passadas
+                if date_str < now.strftime("%Y-%m-%d"):
+                    continue
+                
+                # Verificar se esta data tem horários no turno solicitado
+                if time_period:
+                    try:
+                        times_raw = await api_client.get_available_times_from_api(
+                            professional_id, date_str
+                        )
+                        
+                        # Verificar se tem horários no período solicitado
+                        has_matching_period = False
+                        for slot in times_raw:
+                            start_hour = int(slot["horaInicio"].split(":")[0])
+                            if time_period == "manha" and 5 <= start_hour < 12:
+                                has_matching_period = True
+                                break
+                            elif time_period == "tarde" and 12 <= start_hour < 18:
+                                has_matching_period = True
+                                break
+                        
+                        if has_matching_period:
+                            dates_with_matching_period.append(date_str)
+                            
+                    except Exception as e:
+                        logger.warning(f"Erro ao verificar horários para {date_str}: {e}")
+                        continue
+                else:
+                    # Se não especificou turno, incluir todas as datas
+                    dates_with_matching_period.append(date_str)
+            
+            # Verificar se encontrou datas com o turno solicitado
+            if not dates_with_matching_period:
+                period_msg = f" no período da {time_period}" if time_period else ""
+                return ToolResult(
+                    status=ToolStatus.NOT_FOUND,
+                    message=f"Não encontrei datas disponíveis para {professional_name}{period_msg} neste mês. Gostaria de verificar outro turno ou o próximo mês?",
+                ).message
+
+            # Limitar e formatar as datas encontradas
+            dates_to_show = dates_with_matching_period[:5]  # Mostrar até 5 datas
             formatted_dates = [
                 datetime.strptime(d, "%Y-%m-%d").strftime("%d/%m/%Y")
                 for d in dates_to_show
             ]
 
+            period_msg = f" no período da {time_period}" if time_period else ""
             response_message = (
-                f"Encontrei as seguintes datas disponíveis para {professional_name}:\n- "
+                f"Encontrei as seguintes datas disponíveis para {professional_name}{period_msg}:\n- "
                 + "\n- ".join(formatted_dates)
             )
             response_message += (

@@ -473,27 +473,70 @@ async def check_availability_node(
                     "🟠 FLUXO: Data específica NÃO encontrada - mostrar datas alternativas"
                 )
 
-                # 🆕 BUSCAR DATAS DISPONÍVEIS
+                # 🔧 BUSCAR DATAS DISPONÍVEIS COM FILTRAGEM POR TURNO
                 dates_to_check = await api_client.get_available_dates_from_api(
                     professional_id, today.month, today.year
                 )
-                available_dates = [d["data"] for d in dates_to_check]
+                
+                # 🆕 NOVA LÓGICA: Filtrar datas que possuem horários no turno solicitado
+                dates_with_matching_period = []
+                
+                for date_info in dates_to_check:
+                    date_str = date_info["data"]
+                    
+                    # Pular datas passadas
+                    if date_str < today.strftime("%Y-%m-%d"):
+                        continue
+                    
+                    # Verificar se esta data tem horários no turno solicitado
+                    try:
+                        times_raw = await api_client.get_available_times_from_api(
+                            professional_id, date_str
+                        )
+                        
+                        # Verificar se tem horários no período solicitado
+                        has_matching_period = False
+                        for slot in times_raw:
+                            start_hour = int(slot["horaInicio"].split(":")[0])
+                            if details.time_preference == "manha" and 5 <= start_hour < 12:
+                                has_matching_period = True
+                                break
+                            elif details.time_preference == "tarde" and 12 <= start_hour < 18:
+                                has_matching_period = True
+                                break
+                        
+                        if has_matching_period:
+                            dates_with_matching_period.append(date_str)
+                            
+                    except Exception as e:
+                        logger.warning(f"Erro ao verificar horários para {date_str}: {e}")
+                        continue
 
-                # 🆕 FORMATAR DATAS PARA EXIBIÇÃO
-                formatted_dates = []
-                for date_str in available_dates:
-                    date_obj = datetime.strptime(date_str, "%Y-%m-%d")
-                    formatted_dates.append(date_obj.strftime("%d/%m"))
+                # Verificar se encontrou datas com o turno solicitado
+                if not dates_with_matching_period:
+                    user_date_formatted = details.date_preference.replace("dia", "").strip()
+                    response_text = (
+                        f"O dia {user_date_formatted} que você solicitou não possui horários disponíveis "
+                        f"para {details.professional_name} no período da {details.time_preference}.\n\n"
+                        f"Infelizmente, não encontrei outras datas disponíveis no período da {details.time_preference} "
+                        f"neste mês. Gostaria de verificar outro turno ou o próximo mês?"
+                    )
+                else:
+                    # 🆕 FORMATAR APENAS AS DATAS COM O TURNO CORRETO
+                    formatted_dates = []
+                    for date_str in dates_with_matching_period[:6]:  # Mostrar até 6 datas
+                        date_obj = datetime.strptime(date_str, "%Y-%m-%d")
+                        formatted_dates.append(date_obj.strftime("%d/%m"))
 
-                formatted_dates_str = ", ".join(formatted_dates)
-                user_date_formatted = details.date_preference.replace("dia", "").strip()
+                    formatted_dates_str = ", ".join(formatted_dates)
+                    user_date_formatted = details.date_preference.replace("dia", "").strip()
 
-                response_text = (
-                    f"O dia {user_date_formatted} que você solicitou não possui horários disponíveis "
-                    f"para {details.professional_name} no período da {details.time_preference}.\n\n"
-                    f"Datas disponíveis: {formatted_dates_str}\n\n"
-                    f"Qual data você prefere?"
-                )
+                    response_text = (
+                        f"O dia {user_date_formatted} que você solicitou não possui horários disponíveis "
+                        f"para {details.professional_name} no período da {details.time_preference}.\n\n"
+                        f"Datas disponíveis no período da {details.time_preference}: {formatted_dates_str}\n\n"
+                        f"Qual data você prefere?"
+                    )
 
                 return {
                     **state,
