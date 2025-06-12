@@ -195,7 +195,7 @@ async def book_appointment_node(state: MessageAgentState) -> MessageAgentState:
             "situacao": "AGENDADO",
             "profissionalSaude": {"id": professional_id},
             "paciente": {"nome": "Paciente Agendado via Chatbot"},
-            "unidade": {"id": 1},
+            "unidade": {"id": 21641},
         }
 
         if specialty_id:
