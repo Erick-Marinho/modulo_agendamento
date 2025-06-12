@@ -179,16 +179,21 @@ def _format_date_response(
     is_requested_date: bool = False,
 ) -> str:
     """Formata a mensagem de resposta com base no contexto."""
+    # Dividir os horários em uma lista
+    times_list = times_str.split(", ")
+    
+    # Formatar cada horário em uma nova linha
+    formatted_times = "\n".join(times_list)
+    
     if is_requested_date:
         return (
             f"Perfeito! Para o dia {date_formatted} que você solicitou, "
             f"encontrei os seguintes horários com {professional_name} "
-            f"no período da {time_preference}: {times_str}. Qual você prefere?"
+            f"no período da {time_preference}:\n\n{formatted_times}\n\nQual horário você prefere?"
         )
     return (
         f"Encontrei os seguintes horários disponíveis com {professional_name} "
-        f"para o dia {date_formatted} no período da {time_preference}: "
-        f"{times_str}. Qual você prefere?"
+        f"para o dia {date_formatted} no período da {time_preference}:\n\n{formatted_times}\n\nQual horário você prefere?"
     )
 
 
