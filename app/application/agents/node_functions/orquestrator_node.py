@@ -322,23 +322,29 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
             }
         else:
             logger.info(
-                "Usuário perguntou sobre disponibilidade mas não definiu profissional. Direcionando para esclarecimento."
+                "Usuário perguntou sobre disponibilidade mas não definiu especialidade. Direcionando para esclarecimento."
             )
             return {
                 **state,
                 "next_step": "clarification",
-                "missing_fields": ["nome do profissional"],
+                "missing_fields": ["especialidade"],
             }
 
-    # TERCEIRA PRIORIDADE: Calcular campos faltantes apenas se não detectou especialidade
+    # TERCEIRA PRIORIDADE: Calcular campos faltantes com nova prioridade
     calculated_missing_fields = []
     if updated_details:
-        if not updated_details.professional_name and not updated_details.specialty:
-            calculated_missing_fields.append("nome do profissional ou especialidade")
-        elif not updated_details.professional_name and updated_details.specialty:
-            # Se tem especialidade mas não tem profissional, NÃO adiciona aos campos faltantes
-            # porque vamos buscar os profissionais automaticamente
-            pass
+        # 🆕 NOVA LÓGICA: Especialidade tem prioridade absoluta
+        if not updated_details.specialty:
+            calculated_missing_fields.append("especialidade")
+        elif updated_details.specialty and not updated_details.professional_name:
+            # Se tem especialidade mas não tem profissional: mostrar profissionais automaticamente
+            logger.info(f"🎯 TEM ESPECIALIDADE '{updated_details.specialty}' - Direcionando para seleção de profissionais")
+            return {
+                **state,
+                "next_step": AGENT_TOOL_CALLER_NODE_NAME,
+                "conversation_context": "specialty_selection",
+            }
+            
         if not updated_details.date_preference:
             calculated_missing_fields.append("data de preferência")
         if not updated_details.time_preference:

@@ -97,14 +97,20 @@ def clarification_node(state: MessageAgentState) -> MessageAgentState:
     # Usar missing_fields do estado se disponível, senão calcular
     if not missing_fields:
         missing_fields = []
-        if not details.professional_name:
-            missing_fields.append("nome do profissional")
+        # 🆕 NOVA PRIORIDADE: Especialidade primeiro, depois profissional
+        if not details.specialty:
+            missing_fields.append("especialidade")
+        elif not details.professional_name and details.specialty:
+            # Se já tem especialidade, não pedir nome do profissional ainda
+            # O sistema vai mostrar os profissionais automaticamente
+            pass  
+        elif not details.professional_name and not details.specialty:
+            missing_fields.append("especialidade")  # Sempre priorizar especialidade
+            
         if not details.date_preference:
             missing_fields.append("data de preferência")
         if not details.time_preference:
             missing_fields.append("turno de preferência (manhã ou tarde)")
-        if not details.specialty:
-            missing_fields.append("especialidade")
 
     if missing_fields:
         logger.info(f"Informações de agendamento faltantes: {missing_fields}")
