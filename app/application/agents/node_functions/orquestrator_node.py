@@ -333,22 +333,24 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
     # TERCEIRA PRIORIDADE: Calcular campos faltantes com nova prioridade
     calculated_missing_fields = []
     if updated_details:
-        # 🆕 NOVA LÓGICA: Especialidade tem prioridade absoluta
+        # ✅ CORREÇÃO: Só pedir especialidade se NÃO tiver
         if not updated_details.specialty:
             calculated_missing_fields.append("especialidade")
-        elif updated_details.specialty and not updated_details.professional_name:
-            # Se tem especialidade mas não tem profissional: mostrar profissionais automaticamente
-            logger.info(f"🎯 TEM ESPECIALIDADE '{updated_details.specialty}' - Direcionando para seleção de profissionais")
-            return {
-                **state,
-                "next_step": AGENT_TOOL_CALLER_NODE_NAME,
-                "conversation_context": "specialty_selection",
-            }
-            
-        if not updated_details.date_preference:
-            calculated_missing_fields.append("data de preferência")
-        if not updated_details.time_preference:
-            calculated_missing_fields.append("turno de preferência")
+        # ✅ CORREÇÃO: Só verificar outros campos se JÁ tem especialidade
+        else:  # Se JÁ tem especialidade, verificar outros campos
+            if updated_details.specialty and not updated_details.professional_name:
+                # Se tem especialidade mas não tem profissional: mostrar profissionais automaticamente
+                logger.info(f"🎯 TEM ESPECIALIDADE '{updated_details.specialty}' - Direcionando para seleção de profissionais")
+                return {
+                    **state,
+                    "next_step": AGENT_TOOL_CALLER_NODE_NAME,
+                    "conversation_context": "specialty_selection",
+                }
+                
+            if not updated_details.date_preference:
+                calculated_missing_fields.append("data de preferência")
+            if not updated_details.time_preference:
+                calculated_missing_fields.append("turno de preferência")
 
     # Se extraiu informações de agendamento e faltam campos críticos, vai para clarification
     if updated_details and calculated_missing_fields:
