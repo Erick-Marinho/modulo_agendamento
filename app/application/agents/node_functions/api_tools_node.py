@@ -7,6 +7,7 @@ from langgraph.prebuilt import ToolNode
 from app.application.agents.state.message_agent_state import MessageAgentState
 from app.application.agents.tools.medical_api_tools import MedicalApiTools
 from app.application.interfaces.illm_service import ILLMService
+from app.infrastructure.services.llm.llm_factory import LLMFactory
 
 logger = logging.getLogger(__name__)
 
@@ -79,9 +80,57 @@ def create_tool_calling_agent_node(
     tool_calling_agent_runnable = prompt | llm_with_tools
 
     async def agent_node_func(state: MessageAgentState) -> dict:
-        logger.info(
-            f"--- Executando nó agente de chamada de ferramenta (agent_node_func) ---"
-        )
+        """
+        Função do nó agente que decide qual ferramenta chamar.
+        """
+        logger.info("--- Executando nó agent_tool_caller ---")
+
+        messages = state.get("messages", [])
+        conversation_context = state.get("conversation_context", "")
+        
+        # 🆕 RESPOSTA PERSONALIZADA: Quando vem de incerteza do usuário
+        if conversation_context == "uncertainty_help":
+            logger.info("🎯 CONTEXTO DE AJUDA: Gerando resposta personalizada para incerteza")
+            
+            try:
+                # Obter introdução amigável
+                llm_service = LLMFactory.create_llm_service("openai")
+                intro_message = llm_service.generate_helpful_specialties_intro()
+                
+                # Chamar a ferramenta de especialidades
+                specialties_result = await medical_api_tools.get_available_specialties.ainvoke({})
+                
+                # Combinar introdução personalizada + lista de especialidades
+                # Extrair apenas a lista da resposta da ferramenta (remover a parte formal)
+                if "Encontrei as seguintes especialidades" in specialties_result:
+                    # Pegar apenas a parte da lista
+                    specialties_list = specialties_result.split("Encontrei as seguintes especialidades médicas disponíveis na clínica:\n")[1]
+                    # Remover a pergunta final também
+                    if "Você gostaria de ver" in specialties_list:
+                        specialties_list = specialties_list.split("\n\nVocê gostaria de ver")[0]
+                    
+                    # Combinar introdução personalizada + lista
+                    combined_response = f"{intro_message}\n\n{specialties_list}\n\nQual dessas especialidades você gostaria de consultar?"
+                else:
+                    # Fallback se não conseguir extrair
+                    combined_response = f"{intro_message}\n\n{specialties_result}"
+                
+                ai_message = AIMessage(content=combined_response)
+                return {
+                    "messages": state["messages"] + [ai_message],
+                    "next_step": "completed",
+                    "conversation_context": "specialty_shown",
+                }
+                
+            except Exception as e:
+                logger.error(f"Erro ao gerar resposta personalizada: {e}", exc_info=True)
+                # Fallback para resposta padrão
+                fallback_message = "Sem problemas! Deixe-me mostrar as especialidades que temos disponíveis."
+                ai_message = AIMessage(content=fallback_message)
+                return {
+                    "messages": state["messages"] + [ai_message],
+                    "next_step": "agent_tool_caller",  # Tentar novamente
+                }
 
         extracted_details = state.get("extracted_scheduling_details")
         conversation_context = state.get("conversation_context")

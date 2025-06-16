@@ -302,3 +302,65 @@ class OpenAIService(ILLMService):
         except Exception as e:
             logger.error(f"Erro ao traduzir data natural: {e}")
             return "invalid_date"
+
+    def detect_uncertainty_in_response(self, user_message: str, context: str = "") -> bool:
+        """
+        Usa o LLM para detectar se o usuário está expressando incerteza ou falta de conhecimento.
+        """
+        prompt = f"""
+        Analise a mensagem do usuário abaixo e determine se ela expressa INCERTEZA, FALTA DE CONHECIMENTO ou INDECISÃO.
+
+        CONTEXTO DA CONVERSA: {context}
+        
+        MENSAGEM DO USUÁRIO: "{user_message}"
+        
+        Exemplos de incerteza/falta de conhecimento:
+        - "não sei"
+        - "não tenho certeza" 
+        - "qualquer um serve"
+        - "tanto faz"
+        - "você decide"
+        - "não conheço"
+        - "qualquer coisa"
+        - "o que você recomenda"
+        - "não faço ideia"
+        
+        Responda apenas: SIM (se expressa incerteza) ou NÃO (se não expressa incerteza)
+        """
+        
+        try:
+            response = self.client.invoke(prompt)
+            result = response.content.strip().upper()
+            return result == "SIM"
+        except Exception as e:
+            logger.error(f"Erro ao detectar incerteza: {e}")
+            return False
+
+    def generate_helpful_specialties_intro(self) -> str:
+        """
+        Gera uma introdução amigável e natural antes de mostrar as especialidades.
+        """
+        prompt = """
+        Gere uma introdução amigável e acolhedora para quando alguém não souber qual especialidade médica escolher.
+        A introdução deve:
+        - Ser empática e compreensiva
+        - Oferecer ajuda de forma natural  
+        - Preparar para mostrar a lista de especialidades
+        - Ser concisa (máximo 2 frases)
+        - Ter tom conversacional e humano
+        
+        NÃO use frases como "Encontrei as seguintes especialidades".
+        Use algo mais natural como "Vou te ajudar então" ou "Sem problemas".
+        
+        Exemplos bons:
+        - "Sem problemas! Vou te ajudar então. Aqui estão as especialidades atendidas em nossa clínica:"
+        - "Entendo perfeitamente! Deixe-me mostrar as especialidades que temos disponíveis:"
+        - "Fica tranquilo! Vou te apresentar nossas especialidades para você escolher:"
+        """
+        
+        try:
+            response = self.client.invoke(prompt)
+            return response.content.strip()
+        except Exception as e:
+            logger.error(f"Erro ao gerar introdução de especialidades: {e}")
+            return "Sem problemas! Vou te ajudar então. Aqui estão as especialidades atendidas em nossa clínica:"

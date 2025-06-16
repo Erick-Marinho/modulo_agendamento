@@ -214,6 +214,7 @@ class MessageAgentBuilder:
                 "END_AWAITING_USER": END,
                 "book_appointment_node": "book_appointment_node",
                 "check_availability_node": "check_availability_node",
+                AGENT_TOOL_CALLER_NODE_NAME: AGENT_TOOL_CALLER_NODE_NAME,
                 "DEFAULT_END": END,
             },
         )

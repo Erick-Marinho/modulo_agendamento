@@ -172,3 +172,24 @@ class ILLMService(ABC):
         baseada em uma lista de datas disponíveis.
         """
         pass
+
+    @abstractmethod
+    def detect_uncertainty_in_response(self, user_message: str, context: str = "") -> bool:
+        """
+        Detecta se a resposta do usuário expressa incerteza ou falta de conhecimento.
+        
+        Args:
+            user_message: A mensagem do usuário
+            context: Contexto da conversa para melhor análise
+            
+        Returns:
+            bool: True se a resposta expressa incerteza, False caso contrário
+        """
+        pass
+
+    @abstractmethod
+    def generate_helpful_specialties_intro(self) -> str:
+        """
+        Gera uma introdução amigável antes de mostrar as especialidades quando o usuário expressa incerteza.
+        """
+        pass

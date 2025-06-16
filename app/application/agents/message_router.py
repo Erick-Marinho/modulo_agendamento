@@ -20,12 +20,18 @@ class MessageRouter:
         )
 
         # 🆕 VERIFICAÇÃO DE CONTEXTO PRIMEIRO
-        # Se está aguardando seleção de data, vai para scheduling_info_node
         if conversation_context == "awaiting_date_selection":
             logger.info(
                 "Usuário está escolhendo nova data. Direcionando para scheduling_info_node"
             )
             return "scheduling_info_node"
+
+        # 🆕 VERIFICAÇÃO PARA UNCERTAINTY_HELP
+        if conversation_context == "uncertainty_help":
+            logger.info(
+                "🎯 CONTEXTO UNCERTAINTY_HELP: Direcionando para agent_tool_caller"
+            )
+            return AGENT_TOOL_CALLER_NODE_NAME
 
         # Roteamento normal baseado em next_step (código existente)
         route_map = {
@@ -38,6 +44,8 @@ class MessageRouter:
             "clarification": "clarification_node",
             "api_query": AGENT_TOOL_CALLER_NODE_NAME,
             "specialty_selection": AGENT_TOOL_CALLER_NODE_NAME,
+            "api_interaction": AGENT_TOOL_CALLER_NODE_NAME,
+            "uncertainty_help": AGENT_TOOL_CALLER_NODE_NAME,
             AGENT_TOOL_CALLER_NODE_NAME.lower(): AGENT_TOOL_CALLER_NODE_NAME,
             "fallback_node": "fallback_node",
             "book_appointment_node": "book_appointment_node",
@@ -93,14 +101,30 @@ class MessageRouter:
         Lê o campo 'next_step' do estado.
         """
         next_step = state.get("next_step")
+        conversation_context = state.get("conversation_context", "")
+        
         logger.info(
-            f"Roteando (from decide_after_clarification) com base no next_step: '{next_step}'"
+            f"Roteando (from decide_after_clarification) com base no next_step: '{next_step}', context: '{conversation_context}'"
         )
+
+        # 🆕 SUPORTE PARA UNCERTAINTY_HELP: Redirecionar para agent_tool_caller
+        if next_step == "agent_tool_caller":
+            logger.info("🎯 CLARIFICATION REDIRECIONANDO: Para agent_tool_caller")
+            return AGENT_TOOL_CALLER_NODE_NAME
+        
+        # 🆕 VERIFICAÇÃO DE CONTEXTO: Se é uncertainty_help, ir para agent_tool_caller  
+        if conversation_context == "uncertainty_help":
+            logger.info("🎯 CONTEXTO UNCERTAINTY_HELP: Redirecionando para agent_tool_caller")
+            return AGENT_TOOL_CALLER_NODE_NAME
 
         if next_step == "END_AWAITING_USER":
             return "END_AWAITING_USER"
         elif next_step == "PROCEED_TO_VALIDATION":
             return "PROCEED_TO_VALIDATION"
+        elif next_step == "check_availability_node":
+            return "check_availability_node"
+        elif next_step == "book_appointment_node":
+            return "book_appointment_node"
         else:
             logger.warning(
                 f"Valor inesperado para next_step após clarification_node: {next_step}. Direcionando para DEFAULT_END"
