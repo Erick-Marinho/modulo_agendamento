@@ -63,16 +63,21 @@ def clarification_node(state: MessageAgentState) -> MessageAgentState:
         if last_user_message and _detect_uncertainty_simple(last_user_message):
             logger.info("🎯 DETECTADA INCERTEZA SIMPLES: Redirecionando para especialidades")
             
+            # 🆕 CORREÇÃO: Verificar se missing_fields existe e não é None
+            missing_fields_safe = missing_fields or []
+            
             # Verificar se falta especialidade ou profissional
             needs_specialty_info = any(
                 field in ["nome do profissional", "especialidade", "nome do profissional ou especialidade"] 
-                for field in missing_fields
+                for field in missing_fields_safe
             )
             
-            logger.info(f"🔍 DEBUG: missing_fields = {missing_fields}")
+            logger.info(f"🔍 DEBUG: missing_fields = {missing_fields_safe}")
             logger.info(f"🔍 DEBUG: needs_specialty_info = {needs_specialty_info}")
             
-            if needs_specialty_info:
+            # 🆕 LÓGICA MELHORADA: Se não há missing_fields específicos mas o usuário está incerto
+            # sobre especialidade, sempre ajudar
+            if needs_specialty_info or not missing_fields_safe:
                 logger.info("✅ REDIRECIONANDO: Para agent_tool_caller com contexto uncertainty_help")
                 return {
                     **state,
@@ -111,6 +116,9 @@ def clarification_node(state: MessageAgentState) -> MessageAgentState:
             missing_fields.append("data de preferência")
         if not details.time_preference:
             missing_fields.append("turno de preferência (manhã ou tarde)")
+
+    # 🆕 PROTEÇÃO ADICIONAL: Garantir que missing_fields nunca seja None
+    missing_fields = missing_fields or []
 
     if missing_fields:
         logger.info(f"Informações de agendamento faltantes: {missing_fields}")
