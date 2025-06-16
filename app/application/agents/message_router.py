@@ -42,6 +42,7 @@ class MessageRouter:
             "farewell": "farewell_node",
             "other": "other_node",
             "clarification": "clarification_node",
+            "unclear": "clarification_node",
             "api_query": AGENT_TOOL_CALLER_NODE_NAME,
             "specialty_selection": AGENT_TOOL_CALLER_NODE_NAME,
             "api_interaction": AGENT_TOOL_CALLER_NODE_NAME,
