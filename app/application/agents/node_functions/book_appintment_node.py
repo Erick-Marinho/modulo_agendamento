@@ -176,7 +176,13 @@ async def book_appointment_node(state: MessageAgentState) -> MessageAgentState:
                 f"Não foi possível encontrar o ID para o profissional '{details.professional_name}'"
             )
 
-        specialty_id = await _get_specialty_id_by_name(details.specialty, repository)
+        # ✅ CORREÇÃO: Só buscar specialty_id se specialty não for None
+        specialty_id = None
+        if details.specialty:
+            specialty_id = await _get_specialty_id_by_name(details.specialty, repository)
+            logger.info(f"Specialty ID encontrado: {specialty_id} para '{details.specialty}'")
+        else:
+            logger.warning("Specialty é None - agendando sem especialidade específica")
 
         logger.info(f"Professional ID: {professional_id}, Specialty ID: {specialty_id}")
 
@@ -198,8 +204,12 @@ async def book_appointment_node(state: MessageAgentState) -> MessageAgentState:
             "unidade": {"id": 21641},
         }
 
+        # ✅ CORREÇÃO CRÍTICA: Só adicionar especialidade se for encontrada e não for None
         if specialty_id:
             payload["especialidade"] = {"id": specialty_id}
+            logger.info(f"Adicionando especialidade {specialty_id} ao payload")
+        else:
+            logger.warning("Agendando sem especialidade específica no payload")
 
         logger.info(f"Payload final para agendamento: {payload}")
 
