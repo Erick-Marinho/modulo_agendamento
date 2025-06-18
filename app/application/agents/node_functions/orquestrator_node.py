@@ -34,6 +34,53 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
 
     logger.info(f"Orquestrador classificando mensagem: '{last_human_message_content}'")
 
+    # 🆕 NOVA DETECÇÃO: "Não sei" após lista de profissionais
+    # Verificar se o bot mostrou lista de profissionais nas últimas 2 mensagens
+    recent_ai_messages = [msg.content.lower() for msg in messages[-2:] if 'AI' in str(type(msg))]
+    showed_professional_list = any(
+        ("encontrei os seguintes profissionais" in msg or 
+         "para a especialidade" in msg or
+         "gostaria de agendar com algum deles" in msg)
+        for msg in recent_ai_messages
+    )
+    
+    # Detectar expressões de incerteza
+    uncertainty_phrases = [
+        "não sei", "nao sei", "naõ sei",
+        "não tenho certeza", "nao tenho certeza", 
+        "qualquer um", "tanto faz", "qualquer",
+        "não conheço", "nao conheço", "não conheco",
+        "você decide", "voce decide",
+        "o que você recomenda", "o que voce recomenda",
+        "não faço ideia", "nao faco ideia"
+    ]
+    
+    user_expressed_uncertainty = any(phrase in last_human_message_content for phrase in uncertainty_phrases)
+    
+    # 🆕 RESPOSTA ESPECÍFICA: Quando usuário diz "não sei" após ver lista de profissionais
+    if showed_professional_list and user_expressed_uncertainty:
+        logger.info(f"🎯 DETECTADO: Usuário expressa incerteza '{last_human_message_content}' após ver lista de profissionais")
+        
+        # Buscar qual especialidade foi mostrada no contexto
+        extracted_details = state.get("extracted_scheduling_details")
+        specialty_name = extracted_details.specialty if extracted_details else "dessa especialidade"
+        
+        gentle_response = (
+            f"Entendo! No momento, esses são os únicos profissionais de {specialty_name} "
+            f"que temos disponíveis na clínica.\n\n"
+            f"Você pode escolher qualquer um deles - todos são excelentes profissionais. "
+            f"Ou, se preferir, posso verificar outra especialidade para você.\n\n"
+            f"O que você gostaria de fazer?"
+        )
+        
+        from langchain_core.messages import AIMessage
+        return {
+            **state,
+            "messages": messages + [AIMessage(content=gentle_response)],
+            "next_step": "completed",
+            "conversation_context": "professional_guidance_given",
+        }
+
     # Preparar histórico de conversa
     conversation_history_str = _format_conversation_history_for_prompt(messages)
     

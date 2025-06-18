@@ -24,6 +24,52 @@ def scheduling_info_node(state: MessageAgentState) -> MessageAgentState:
     messages = state.get("messages", [])
     last_message = messages[-1].content.lower().strip() if messages else ""
 
+    # 🆕 NOVA DETECÇÃO: "Não sei" após lista de profissionais
+    # Verificar se o bot mostrou lista de profissionais nas últimas 2 mensagens
+    recent_ai_messages = [msg.content.lower() for msg in messages[-2:] if 'AI' in str(type(msg))]
+    showed_professional_list = any(
+        ("encontrei os seguintes profissionais" in msg or 
+         "para a especialidade" in msg or
+         "gostaria de agendar com algum deles" in msg)
+        for msg in recent_ai_messages
+    )
+    
+    # Detectar expressões de incerteza
+    uncertainty_phrases = [
+        "não sei", "nao sei", "naõ sei",
+        "não tenho certeza", "nao tenho certeza", 
+        "qualquer um", "tanto faz", "qualquer",
+        "não conheço", "nao conheço", "não conheco",
+        "você decide", "voce decide",
+        "o que você recomenda", "o que voce recomenda",
+        "não faço ideia", "nao faco ideia"
+    ]
+    
+    user_expressed_uncertainty = any(phrase in last_message for phrase in uncertainty_phrases)
+    
+    # 🆕 RESPOSTA ESPECÍFICA: Quando usuário diz "não sei" após ver lista de profissionais
+    if showed_professional_list and user_expressed_uncertainty:
+        logger.info(f"🎯 DETECTADO: Usuário expressa incerteza '{last_message}' após ver lista de profissionais")
+        
+        # Buscar qual especialidade foi mostrada no contexto
+        extracted_details = state.get("extracted_scheduling_details")
+        specialty_name = extracted_details.specialty if extracted_details else "dessa especialidade"
+        
+        gentle_response = (
+            f"Sem problemas! No momento, esses são os únicos profissionais de {specialty_name} "
+            f"que temos disponíveis na clínica.\n\n"
+            f"Todos são excelentes profissionais e você pode escolher qualquer um deles. "
+            f"Ou, se preferir, posso mostrar profissionais de outra especialidade.\n\n"
+            f"O que você prefere?"
+        )
+        
+        return {
+            **state,
+            "messages": messages + [AIMessage(content=gentle_response)],
+            "next_step": "completed",
+            "conversation_context": "awaiting_professional_choice",
+        }
+
     # Palavras-chave expandidas para detectar perguntas sobre API
     api_query_patterns = [
         # Padrões diretos
@@ -144,11 +190,11 @@ def _update_existing_details(state: MessageAgentState) -> MessageAgentState:
                 "🔄 Contexto 'awaiting_date_selection' - Processando nova data escolhida"
             )
 
-            # Apenas extrair e atualizar os detalhes - NÃO gerar mensagem
+            # 🔧 CORREÇÃO: Usar histórico maior para preservar contexto
             llm_service = LLMFactory.create_llm_service("openai")
             all_messages = state.get("messages", [])
             conversation_history = _format_conversation_history(
-                all_messages, max_messages=3
+                all_messages, max_messages=12  # 
             )
 
             new_details = llm_service.extract_scheduling_details(conversation_history)
@@ -164,7 +210,7 @@ def _update_existing_details(state: MessageAgentState) -> MessageAgentState:
                 return {
                     **state,
                     "extracted_scheduling_details": updated_details,
-                    "conversation_context": "",  # Limpar contexto
+                    "conversation_context": "",
                     "next_step": "check_availability_node",
                 }
 
@@ -179,7 +225,8 @@ def _update_existing_details(state: MessageAgentState) -> MessageAgentState:
             logger.warning("Nenhuma mensagem encontrada para atualização")
             return {**state, "next_step": "clarification"}
 
-        conversation_history = _format_conversation_history(all_messages, max_messages=3)
+        # 🔧 CORREÇÃO PRINCIPAL: Usar histórico maior para preservar especialidade
+        conversation_history = _format_conversation_history(all_messages, max_messages=10)  # 🔧 AUMENTADO DE 3 PARA 10
 
         logger.info(
             f"Atualizando detalhes com o histórico recente: '{conversation_history}'"
@@ -238,7 +285,7 @@ def _format_conversation_history(messages, max_messages: int = 5) -> str:
 
 def _merge_scheduling_details(existing, new):
     """
-    Mescla detalhes de agendamento, priorizando informações mais recentes.
+    Mescla detalhes de agendamento, priorizando informações mais recentes quando não forem None.
     """
     if not existing:
         logger.info("Nenhum detalhe existente, retornando dados novos")
@@ -248,13 +295,43 @@ def _merge_scheduling_details(existing, new):
         logger.info("Nenhum detalhe novo, retornando dados existentes")
         return existing
 
+    # 🔧 LÓGICA MELHORADA: Priorizar valores não-None ao invés de só usar 'or'
     merged = SchedulingDetails(
-        professional_name=existing.professional_name or new.professional_name,
-        specialty=existing.specialty or new.specialty,
-        date_preference=existing.date_preference or new.date_preference,
-        time_preference=existing.time_preference or new.time_preference,
-        specific_time=new.specific_time or existing.specific_time,
-        service_type=existing.service_type or new.service_type,
+        professional_name=(
+            new.professional_name 
+            if new.professional_name is not None 
+            else existing.professional_name
+        ),
+        specialty=(
+            new.specialty 
+            if new.specialty is not None 
+            else existing.specialty
+        ),
+        date_preference=(
+            new.date_preference 
+            if new.date_preference is not None 
+            else existing.date_preference
+        ),
+        time_preference=(
+            new.time_preference 
+            if new.time_preference is not None 
+            else existing.time_preference
+        ),
+        specific_time=(
+            new.specific_time 
+            if new.specific_time is not None 
+            else existing.specific_time
+        ),
+        service_type=(
+            new.service_type 
+            if new.service_type is not None 
+            else existing.service_type
+        ),
     )
+
+    # 🔧 LOG DETALHADO PARA DEBUG
+    logger.info(f"🔄 MERGE - Existente: {existing}")
+    logger.info(f"🔄 MERGE - Novo: {new}")
+    logger.info(f"🔄 MERGE - Resultado: {merged}")
 
     return merged
