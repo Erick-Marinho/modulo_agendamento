@@ -399,17 +399,30 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
             if not updated_details.time_preference:
                 calculated_missing_fields.append("turno de preferência")
 
-    # Se extraiu informações de agendamento e faltam campos críticos, vai para clarification
+    # 🔧 CORREÇÃO CRÍTICA: Se extraiu informações de agendamento e faltam campos críticos
     if updated_details and calculated_missing_fields:
         logger.info(
-            f"Agendamento detectado com campos faltando: {calculated_missing_fields}. Direcionando para clarification."
+            f"Agendamento detectado com campos faltando: {calculated_missing_fields}."
         )
-        return {
-            **state,
-            "missing_fields": calculated_missing_fields,
-            "next_step": "clarification",
-            "conversation_context": "scheduling_flow",
-        }
+        
+        # 🔧 NOVA LÓGICA: Se já está no contexto de agendamento, usar scheduling_info
+        current_context = state.get("conversation_context", "")
+        if current_context == "scheduling_flow":
+            logger.info("✅ JÁ no contexto de agendamento - direcionando para scheduling_info_node")
+            return {
+                **state,
+                "missing_fields": calculated_missing_fields,
+                "next_step": "scheduling_info",
+                "conversation_context": "scheduling_flow",
+            }
+        else:
+            logger.info("🆕 Primeira vez no agendamento - direcionando para clarification")
+            return {
+                **state,
+                "missing_fields": calculated_missing_fields,
+                "next_step": "clarification", 
+                "conversation_context": "scheduling_flow",
+            }
 
     current_next_step = state.get("next_step", "")
     if current_next_step == "awaiting_final_confirmation":

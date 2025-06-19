@@ -24,6 +24,44 @@ def scheduling_info_node(state: MessageAgentState) -> MessageAgentState:
     messages = state.get("messages", [])
     last_message = messages[-1].content.lower().strip() if messages else ""
 
+    # 🆕 NOVA DETECÇÃO CRÍTICA: Expressões de "data mais próxima"
+    proximity_phrases = [
+        "mais próxima", "mais proxima", "a mais próxima", "a mais proxima",
+        "primeira disponível", "primeira data", "qualquer data",
+        "quanto antes", "o mais breve", "breve possível",
+        "próxima data", "proxima data", "primeira vaga"
+    ]
+    
+    user_wants_earliest = any(phrase in last_message for phrase in proximity_phrases)
+    
+    # 🔧 TRATAMENTO ESPECÍFICO: Data mais próxima (PRIORIDADE MÁXIMA)
+    if user_wants_earliest:
+        logger.info(f"🎯 DETECTADO: Usuário quer data mais próxima: '{last_message}'")
+        
+        extracted_details = state.get("extracted_scheduling_details")
+        if not extracted_details:
+            logger.info("Primeira extração com data mais próxima")
+            return _extract_initial_details(state)
+        
+        # Atualizar forçadamente com a preferência de "data mais próxima"
+        updated_details = SchedulingDetails(
+            professional_name=extracted_details.professional_name,
+            specialty=extracted_details.specialty,
+            date_preference="a mais próxima",  # 🔧 FORÇAR valor específico
+            time_preference=extracted_details.time_preference,
+            specific_time=extracted_details.specific_time,
+            service_type=extracted_details.service_type or "consulta",
+        )
+        
+        logger.info(f"✅ Data mais próxima aplicada manualmente: {updated_details}")
+        
+        return {
+            **state,
+            "extracted_scheduling_details": updated_details,
+            "next_step": "check_completeness",
+            "conversation_context": "scheduling_flow",
+        }
+
     # 🆕 NOVA DETECÇÃO: "Não sei" após lista de profissionais
     # Verificar se o bot mostrou lista de profissionais nas últimas 2 mensagens
     recent_ai_messages = [msg.content.lower() for msg in messages[-2:] if 'AI' in str(type(msg))]

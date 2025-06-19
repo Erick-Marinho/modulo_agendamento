@@ -45,6 +45,15 @@ def _get_missing_essential_fields(details) -> List[str]:
         missing_fields.append("data de preferência")
 
     if not details.time_preference:
-        missing_fields.append("horário de preferência")
+        # 🔧 NOVA LÓGICA: Se date_preference indica "proximidade", perguntar sobre TURNO
+        if details.date_preference and any(
+            phrase in details.date_preference.lower()
+            for phrase in ["mais próxima", "mais proxima", "primeira disponível", "quanto antes"]
+        ):
+            missing_fields.append("turno de preferência")
+            logger.info(f"🎯 Data indica proximidade ('{details.date_preference}') - perguntando sobre TURNO")
+        else:
+            missing_fields.append("horário de preferência")
+            logger.info(f"🎯 Data específica ('{details.date_preference}') - perguntando sobre HORÁRIO")
 
     return missing_fields

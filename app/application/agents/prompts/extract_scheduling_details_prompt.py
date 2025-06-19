@@ -24,13 +24,19 @@ EXTRACT_SCHEDULING_DETAILS_TEMPLATE = ChatPromptTemplate.from_template(
         - "14h", "às 14", "2 da tarde" → "14:00"
         - "15:30", "3:30 da tarde" → "15:30"
         - Se o usuário mencionar apenas turno genérico ("manhã", "tarde"), use null para specific_time.
-    8. Se uma informação não for mencionada ou estiver incerta, use null.
-    9. IMPORTANTE: Para "service_type", se não for especificado explicitamente pelo usuário, sempre use "consulta" como padrão.
+    8. ✅ NOVA REGRA CRÍTICA - Para "date_preference": SEMPRE aceite expressões de proximidade temporal.
+        - "a mais próxima", "mais próxima", "a mais proxima", "mais proxima" → "a mais próxima"
+        - "qualquer data", "primeira disponível", "primeira data" → "primeira disponível"
+        - "o mais breve possível", "breve possível", "quanto antes" → "quanto antes"
+        - "próxima segunda", "segunda feira", "terça" → extrair o dia da semana mencionado
+        - IMPORTANTE: Se o usuário mencionar expressões temporais vagas, SEMPRE extraia como uma preferência válida.
+    9. Se uma informação não for mencionada ou estiver incerta, use null.
+    10. IMPORTANTE: Para "service_type", se não for especificado explicitamente pelo usuário, sempre use "consulta" como padrão.
    
     INFORMAÇÕES A EXTRAIR:
     - "professional_name": Nome do profissional (ex: "Dr. Silva", "Dra. Maria")
     - "specialty": Especialidade médica (ex: "Cardiologia", "Pediatria", "Clínico Geral")
-    - "date_preference": Data mencionada (ex: "dia 10", "amanhã", "terça-feira")
+    - "date_preference": Data mencionada (ex: "dia 10", "amanhã", "terça-feira", "a mais próxima")
     - "time_preference": Turno da preferência (DEVE SER "manha" ou "tarde")
     - "specific_time": Horário específico (ex: "08:00", "14:30", "09:00") - FORMATO 24h HH:MM
     - "service_type": Tipo de atendimento (ex: "consulta", "retorno", "exame")
@@ -69,6 +75,22 @@ EXTRACT_SCHEDULING_DETAILS_TEMPLATE = ChatPromptTemplate.from_template(
 
     Conversa: "08:30"
     → {{ "professional_name": null, "specialty": null, "date_preference": null, "time_preference": "manha", "specific_time": "08:30", "service_type": null }}
+
+    ✅ NOVOS EXEMPLOS COM DATA MAIS PRÓXIMA (CRÍTICO PARA RESOLVER LOOP):
+    Conversa: "A mais próxima"
+    → {{ "professional_name": null, "specialty": null, "date_preference": "a mais próxima", "time_preference": null, "specific_time": null, "service_type": null }}
+    
+    Conversa: "Quero a data mais próxima"
+    → {{ "professional_name": null, "specialty": null, "date_preference": "a mais próxima", "time_preference": null, "specific_time": null, "service_type": null }}
+    
+    Conversa: "A mais proxima disponível"
+    → {{ "professional_name": null, "specialty": null, "date_preference": "a mais próxima", "time_preference": null, "specific_time": null, "service_type": null }}
+    
+    Conversa: "Primeira data disponível"
+    → {{ "professional_name": null, "specialty": null, "date_preference": "primeira disponível", "time_preference": null, "specific_time": null, "service_type": null }}
+    
+    Conversa: "Quanto antes possível"
+    → {{ "professional_name": null, "specialty": null, "date_preference": "quanto antes", "time_preference": null, "specific_time": null, "service_type": null }}
 
     Conversa: "Quero agendar consulta com Dr João para amanhã de tarde."
     → {{ "professional_name": "Dr. João", "date_preference": "amanhã", "time_preference": "tarde", "specific_time": null, "service_type": "consulta", "specialty": null }}

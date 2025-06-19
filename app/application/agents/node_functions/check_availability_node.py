@@ -70,11 +70,12 @@ def _filter_times_by_preference(
 
     filtered = []
     for slot in available_times:
+        # 🔧 CORREÇÃO: Definir start_hour ANTES das condicionais
+        start_hour = int(slot["horaInicio"].split(":")[0])
+        
         if (
             time_preference == "manha"
-            and MORNING_RANGE[0]
-            <= (start_hour := int(slot["horaInicio"].split(":")[0]))
-            < MORNING_RANGE[1]
+            and MORNING_RANGE[0] <= start_hour < MORNING_RANGE[1]
         ):
             filtered.append(slot["horaInicio"])
         elif (
@@ -177,6 +178,7 @@ def _format_date_response(
     time_preference: str,
     times_str: str,
     is_requested_date: bool = False,
+    unavailable_date: str = None,
 ) -> str:
     """Formata a mensagem de resposta com base no contexto."""
     # Dividir os horários em uma lista
@@ -191,6 +193,16 @@ def _format_date_response(
             f"encontrei os seguintes horários com {professional_name} "
             f"no período da {time_preference}:\n\n{formatted_times}\n\nQual horário você prefere?"
         )
+    
+    # 🆕 CASO: Data não disponível, mostrando alternativa
+    if unavailable_date:
+        return (
+            f"O dia {unavailable_date} não está disponível para consulta. "
+            f"Como alternativa, encontrei os seguintes horários disponíveis com {professional_name} "
+            f"para o dia {date_formatted} no período da {time_preference}:\n\n{formatted_times}\n\nQual horário você prefere?"
+        )
+    
+    # Caso padrão
     return (
         f"Encontrei os seguintes horários disponíveis com {professional_name} "
         f"para o dia {date_formatted} no período da {time_preference}:\n\n{formatted_times}\n\nQual horário você prefere?"
@@ -361,6 +373,21 @@ def _validate_and_correct_translated_date(
         return translated_date
 
 
+# Adicionar detecção específica para "data mais próxima"
+def _should_find_earliest_date(date_preference: str) -> bool:
+    """Detecta se o usuário quer a data mais próxima disponível."""
+    if not date_preference:
+        return False
+        
+    earliest_keywords = [
+        "mais próxima", "mais proxima", "a mais próxima", "a mais proxima",
+        "primeira disponível", "primeira data", "qualquer data",
+        "quanto antes", "o mais breve", "breve possível"
+    ]
+    
+    return any(keyword in date_preference.lower() for keyword in earliest_keywords)
+
+
 # --- O Nó Principal (VERSÃO ATUALIZADA) ---
 
 
@@ -426,64 +453,101 @@ async def check_availability_node(
             f"🔍 DEBUG - Usuário pediu data específica? {user_asked_specific_day}"
         )
 
-        result = await _find_first_available_slot(
-            api_client,
-            professional_id,
-            details.time_preference,
-            today,
-            translated_date,  # Agora pode ser uma data válida ou None
-        )
+        # 🔧 DETECÇÃO ESPECÍFICA: Data mais próxima
+        if _should_find_earliest_date(details.date_preference):
+            logger.info(f"🎯 Usuário quer data mais próxima: '{details.date_preference}'")
+            # Forçar busca pela primeira data disponível
+            result = await _find_first_available_slot(
+                api_client,
+                professional_id,
+                details.time_preference,
+                today,
+                None,  # 🔧 None para buscar primeira disponível
+            )
+        else:
+            # Lógica existente para datas específicas
+            result = await _find_first_available_slot(
+                api_client,
+                professional_id,
+                details.time_preference,
+                today,
+                translated_date,
+            )
         logger.info(f"🔍 DEBUG - Resultado completo da busca: {result}")
 
-        if result and result[0] and result[1]:  # Se encontrou data e horários
+        # 🔧 CORREÇÃO: Verificação mais robusta do resultado
+        if result and len(result) == 3:
             found_date, suggested_times, preferred_date_found = result
-            times_str = ", ".join([t[:5] for t in suggested_times])
-            date_formatted = datetime.strptime(found_date, "%Y-%m-%d").strftime(
-                "%d/%m/%Y"
-            )
+            
+            # ✅ Verificação adicional se realmente encontrou algo
+            if found_date and suggested_times:
+                logger.info(f"✅ Encontrou horários: data={found_date}, horários={len(suggested_times)}")
+                
+                times_str = ", ".join([t[:5] for t in suggested_times])
+                date_formatted = datetime.strptime(found_date, "%Y-%m-%d").strftime("%d/%m/%Y")
 
-            # LOGS DE DEBUG CRÍTICOS
-            logger.info(f"🔍 DEBUG CRÍTICO - found_date: {found_date}")
-            logger.info(
-                f"🔍 DEBUG CRÍTICO - preferred_date_found: {preferred_date_found}"
-            )
-            logger.info(f"🔍 DEBUG CRÍTICO - translated_date: {translated_date}")
-            logger.info(
-                f"🔍 DEBUG CRÍTICO - user_asked_specific_day: {user_asked_specific_day}"
-            )
+                # LOGS DE DEBUG CRÍTICOS
+                logger.info(f"🔍 DEBUG CRÍTICO - found_date: {found_date}")
+                logger.info(f"🔍 DEBUG CRÍTICO - preferred_date_found: {preferred_date_found}")
+                logger.info(f"🔍 DEBUG CRÍTICO - translated_date: {translated_date}")
+                logger.info(f"🔍 DEBUG CRÍTICO - user_asked_specific_day: {user_asked_specific_day}")
 
-            # CONDIÇÕES EXPLÍCITAS PARA DEBUG
-            condition_1 = preferred_date_found
-            condition_2 = user_asked_specific_day and translated_date is not None
+                # CONDIÇÕES EXPLÍCITAS PARA DEBUG
+                condition_1 = preferred_date_found
+                condition_2 = user_asked_specific_day and translated_date is not None
 
-            logger.info(f"🔍 DEBUG CONDIÇÕES:")
-            logger.info(f"    - Condição 1 (data preferida encontrada): {condition_1}")
-            logger.info(f"    - Condição 2 (data específica + traduzida): {condition_2}")
-            logger.info(f"    - user_asked_specific_day: {user_asked_specific_day}")
-            logger.info(
-                f"    - translated_date não é None: {translated_date is not None}"
-            )
+                logger.info(f"🔍 DEBUG CONDIÇÕES:")
+                logger.info(f"    - Condição 1 (data preferida encontrada): {condition_1}")
+                logger.info(f"    - Condição 2 (data específica + traduzida): {condition_2}")
 
-            if condition_1:
-                logger.info("🟢 FLUXO: Data preferida encontrada - resposta positiva")
-                response_text = _format_date_response(
-                    date_formatted,
-                    details.professional_name,
-                    details.time_preference,
-                    times_str,
-                    is_requested_date=True,
-                )
-            elif condition_2:
-                logger.info(
-                    "🟠 FLUXO: Data específica NÃO encontrada - mostrar datas alternativas"
-                )
+                if condition_1:
+                    logger.info("🟢 FLUXO: Data preferida encontrada - resposta positiva")
+                    response_text = _format_date_response(
+                        date_formatted,
+                        details.professional_name,
+                        details.time_preference,
+                        times_str,
+                        is_requested_date=True,
+                    )
+                else:
+                    logger.info("🔵 FLUXO: Próxima data disponível encontrada")
+                    
+                    # 🆕 EXTRAIR DIA DA DATA PREFERIDA PARA MENSAGEM
+                    user_date_formatted = None
+                    if user_asked_specific_day and details.date_preference:
+                        user_date_formatted = details.date_preference.replace("dia", "").strip()
+                    
+                    response_text = _format_date_response(
+                        date_formatted,
+                        details.professional_name,
+                        details.time_preference,
+                        times_str,
+                        unavailable_date=user_date_formatted,  # 🆕 PASSAR DATA NÃO DISPONÍVEL
+                    )
 
+                return {
+                    **state,
+                    "messages": current_messages + [AIMessage(content=response_text)],
+                    "conversation_context": "awaiting_slot_selection",
+                    "next_step": "completed",
+                }
+            else:
+                logger.info("🔴 result existe mas sem dados válidos - tratando como data não encontrada")
+        
+        # 🆕 FLUXO QUANDO NÃO ENCONTRA NADA OU DATA ESPECÍFICA INDISPONÍVEL
+        logger.info("🔴 Nenhuma data com horários encontrada - buscando alternativas")
+        
+        # Se usuário pediu data específica, mostrar alternativas
+        if user_asked_specific_day and translated_date:
+            logger.info("🟠 Data específica não disponível - mostrando alternativas")
+            
+            try:
                 # 🔧 BUSCAR DATAS DISPONÍVEIS COM FILTRAGEM POR TURNO
                 dates_to_check = await api_client.get_available_dates_from_api(
                     professional_id, today.month, today.year
                 )
                 
-                # 🆕 NOVA LÓGICA: Filtrar datas que possuem horários no turno solicitado
+                # 🆕 FILTRAR POR TURNO
                 dates_with_matching_period = []
                 
                 for date_info in dates_to_check:
@@ -549,26 +613,20 @@ async def check_availability_node(
                     "conversation_context": "awaiting_date_selection",
                     "next_step": "completed",
                 }
-            else:
-                logger.info("🔵 FLUXO: Resposta padrão (busca genérica)")
-                response_text = _format_date_response(
-                    date_formatted,
-                    details.professional_name,
-                    details.time_preference,
-                    times_str,
+                
+            except Exception as inner_e:
+                logger.error(f"Erro ao buscar datas alternativas: {inner_e}")
+                response_text = (
+                    f"O dia {details.date_preference} não está disponível, mas tive "
+                    f"dificuldade para buscar outras opções. Poderia tentar uma data diferente?"
                 )
-
-            logger.info(
-                f"🔍 DEBUG - Resposta que será enviada: {response_text[:100]}..."
-            )
-
-            return {
-                **state,
-                "messages": current_messages + [AIMessage(content=response_text)],
-                "conversation_context": "awaiting_slot_selection",
-                "next_step": "completed",
-            }
-
+                return {
+                    **state,
+                    "messages": current_messages + [AIMessage(content=response_text)],
+                    "next_step": "completed",
+                }
+        
+        # Resposta genérica quando não encontra nada
         response_text = (
             f"Puxa, parece que o(a) {details.professional_name} não possui "
             f"horários disponíveis no período da {details.time_preference} "
