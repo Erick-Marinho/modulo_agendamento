@@ -99,6 +99,60 @@ async def _get_specialty_id_by_name(
     return None
 
 
+def _filter_times_by_preference(
+    available_times: List[dict], time_preference: str
+) -> List[str]:
+    """Filtra horários por preferência de turno."""
+    MORNING_RANGE = (5, 12)
+    AFTERNOON_RANGE = (12, 18)
+
+    filtered = []
+    for slot in available_times:
+        start_hour = int(slot["horaInicio"].split(":")[0])
+        
+        if (
+            time_preference == "manha"
+            and MORNING_RANGE[0] <= start_hour < MORNING_RANGE[1]
+        ):
+            filtered.append(slot["horaInicio"])
+        elif (
+            time_preference == "tarde"
+            and AFTERNOON_RANGE[0] <= start_hour < AFTERNOON_RANGE[1]
+        ):
+            filtered.append(slot["horaInicio"])
+    return filtered
+
+
+async def _validate_time_availability(
+    api_client: AppHealthAPIClient,
+    professional_id: int,
+    date: str,
+    chosen_time: str,
+    time_preference: str
+) -> tuple[bool, list[str]]:
+    """
+    Valida se o horário escolhido está disponível.
+    Retorna: (is_valid, available_times_list)
+    """
+    try:
+        # Buscar horários disponíveis da API
+        available_slots = await api_client.get_available_times_from_api(
+            professional_id, date
+        )
+        
+        # Filtrar por turno
+        filtered_times = _filter_times_by_preference(available_slots, time_preference)
+        
+        # Verificar se o horário escolhido está disponível
+        chosen_time_formatted = f"{chosen_time}:00"
+        is_available = chosen_time_formatted in [slot["horaInicio"] for slot in available_slots]
+        
+        return is_available, filtered_times
+    except Exception as e:
+        logger.error(f"Erro ao validar disponibilidade: {e}")
+        return False, []
+
+
 # --- O Nó Final (Versão Corrigida) ---
 
 
@@ -185,6 +239,39 @@ async def book_appointment_node(state: MessageAgentState) -> MessageAgentState:
             logger.warning("Specialty é None - agendando sem especialidade específica")
 
         logger.info(f"Professional ID: {professional_id}, Specialty ID: {specialty_id}")
+
+        # 🚨 VALIDAÇÃO CRÍTICA - Verificar se horário está disponível ANTES de agendar
+        logger.info(f"🔍 Validando horário {chosen_time} para data {appointment_date}")
+        is_valid, available_times = await _validate_time_availability(
+            api_client, professional_id, appointment_date, 
+            chosen_time, details.time_preference
+        )
+
+        if not is_valid:
+            # ❌ Horário inválido - solicitar nova escolha
+            times_list = [t[:5] for t in available_times]
+            formatted_times = "\n".join(times_list)
+            date_formatted = datetime.strptime(appointment_date, "%Y-%m-%d").strftime("%d/%m/%Y")
+            
+            error_message = (
+                f"Desculpe, o horário {chosen_time} não está disponível. "
+                f"Os horários disponíveis para {details.professional_name} "
+                f"no dia {date_formatted} no período da {details.time_preference} são:\n\n"
+                f"{formatted_times}\n\n"
+                f"Por favor, escolha um dos horários disponíveis."
+            )
+            
+            logger.info(f"❌ Horário {chosen_time} rejeitado - solicitando nova escolha")
+            
+            return {
+                **state,
+                "messages": current_messages + [AIMessage(content=error_message)],
+                "conversation_context": "awaiting_slot_selection",
+                "next_step": "completed",
+            }
+
+        # ✅ Horário válido - prosseguir com agendamento
+        logger.info(f"✅ Horário {chosen_time} validado com sucesso!")
 
         # 6. Calcular hora de fim (1 hora após o início)
         start_hour, start_minute = chosen_time.split(":")
