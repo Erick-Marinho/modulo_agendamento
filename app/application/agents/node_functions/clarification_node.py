@@ -99,41 +99,29 @@ def clarification_node(state: MessageAgentState) -> MessageAgentState:
             "next_step": "END_AWAITING_USER",
         }
 
-    # Usar missing_fields do estado se disponível, senão calcular
-    if not missing_fields:
-        missing_fields = []
-        # 🆕 NOVA PRIORIDADE: Especialidade primeiro, depois profissional
-        if not details.specialty:
-            missing_fields.append("especialidade")
-        elif not details.professional_name and details.specialty:
-            # Se já tem especialidade, não pedir nome do profissional ainda
-            # O sistema vai mostrar os profissionais automaticamente
-            pass  
-        elif not details.professional_name and not details.specialty:
-            missing_fields.append("especialidade")  # Sempre priorizar especialidade
-            
-        if not details.date_preference:
-            missing_fields.append("data de preferência")
-        if not details.time_preference:
-            missing_fields.append("turno de preferência (manhã ou tarde)")
-
-    # 🆕 PROTEÇÃO ADICIONAL: Garantir que missing_fields nunca seja None
-    missing_fields = missing_fields or []
-
+    # 🆕 PRIORIZAR UM CAMPO POR VEZ: Usar apenas o próximo campo mais importante
     if missing_fields:
-        logger.info(f"Informações de agendamento faltantes: {missing_fields}")
+        # Se há campos missing fornecidos pelo estado, usar apenas o primeiro (mais prioritário)
+        priority_field = missing_fields[0] if missing_fields else None
+        logger.info(f"Campo prioritário a ser perguntado: {priority_field}")
+    else:
+        # Se não há missing_fields no estado, calcular o próximo campo prioritário
+        priority_field = _get_next_priority_field(details)
+        logger.info(f"Campo prioritário calculado: {priority_field}")
+
+    if priority_field:
+        logger.info(f"Informação de agendamento faltante: {priority_field}")
 
         service_type_info = (
             details.service_type if details.service_type else "serviço desejado"
         )
-        missing_fields_str = _format_missing_fields_for_prompt(missing_fields)
 
         llm_service: ILLMService = LLMFactory.create_llm_service("openai")
 
         try:
             ai_response_text = llm_service.generate_clarification_question(
                 service_type=service_type_info,
-                missing_fields_list=missing_fields_str,
+                missing_fields_list=priority_field,  # 🔧 Apenas UM campo por vez
                 professional_name=details.professional_name,
                 specialty=details.specialty,
                 date_preference=details.date_preference,
@@ -142,7 +130,12 @@ def clarification_node(state: MessageAgentState) -> MessageAgentState:
             logger.info(f"Pergunta de esclarecimento gerada: {ai_response_text}")
         except Exception as e:
             logger.error(f"Erro ao gerar pergunta de esclarecimento via LLM: {e}")
-            ai_response_text = f"Para continuarmos com o agendamento do(a) {service_type_info}, preciso de mais alguns detalhes: {missing_fields_str}. Poderia me informar, por favor?"
+            ai_response_text = None
+
+        # 🆕 TRATAMENTO CRÍTICO: Garantir que ai_response_text nunca seja None
+        if not ai_response_text:
+            logger.warning("LLM retornou None - usando fallback manual")
+            ai_response_text = _generate_fallback_question(priority_field, details)
 
         current_messages.append(AIMessage(content=ai_response_text))
         return {
@@ -155,3 +148,56 @@ def clarification_node(state: MessageAgentState) -> MessageAgentState:
             "Todos os detalhes essenciais para o agendamento foram coletados e estão presentes."
         )
         return {**state, "next_step": "check_availability_node"}
+
+
+def _get_next_priority_field(details: SchedulingDetails) -> Optional[str]:
+    """
+    Retorna o próximo campo essencial mais prioritário que está faltando.
+    Implementa ordem de prioridade para evitar perguntas múltiplas.
+    """
+    # PRIORIDADE 1: Especialidade ou profissional
+    if not details.specialty and not details.professional_name:
+        return "especialidade ou nome do profissional"
+    
+    # PRIORIDADE 2: Data de preferência
+    if not details.date_preference:
+        return "data de preferência"
+    
+    # PRIORIDADE 3: Turno/Horário de preferência
+    if not details.time_preference:
+        # Se date_preference indica "proximidade", perguntar sobre TURNO
+        if details.date_preference and any(
+            phrase in details.date_preference.lower()
+            for phrase in ["mais próxima", "mais proxima", "primeira disponível", "quanto antes"]
+        ):
+            logger.info(f"🎯 Data indica proximidade ('{details.date_preference}') - perguntando sobre TURNO")
+            return "turno de preferência"
+        else:
+            logger.info(f"🎯 Data específica ('{details.date_preference}') - perguntando sobre HORÁRIO")
+            return "horário de preferência"
+    
+    # PRIORIDADE 4: Nome do paciente (só pergunta por último)
+    if not details.patient_name:
+        return "nome do paciente"
+    
+    # Se chegou aqui, todos os campos essenciais estão preenchidos
+    return None
+
+
+def _generate_fallback_question(field: str, details: SchedulingDetails) -> str:
+    """
+    Gera pergunta manual como fallback quando LLM falha.
+    """
+    if field == "especialidade ou nome do profissional":
+        return "Qual especialidade médica você procura?"
+    elif field == "data de preferência":
+        return "Para qual data você gostaria de agendar?"
+    elif field == "turno de preferência":
+        professional_name = details.professional_name or "o profissional"
+        return f"Qual turno você prefere para a consulta com {professional_name}? (manhã ou tarde)"
+    elif field == "horário de preferência":
+        return "Qual horário você gostaria de agendar?"
+    elif field == "nome do paciente":
+        return "Qual é o nome do paciente para o agendamento?"
+    else:
+        return f"Para continuarmos com o agendamento, preciso saber: {field}. Pode me informar?"

@@ -138,7 +138,7 @@ def create_get_professionals_by_specialty_tool(
             response_message = (
                 f"Para a especialidade '{specialty_name}', encontrei os seguintes profissionais:\n"
                 f"{professionals_list_str}\n\n"
-                f"Gostaria de agendar com algum deles ou saber mais detalhes?"
+                f"Quer agendar com qual deles?"
             )
 
             result = ToolResult(

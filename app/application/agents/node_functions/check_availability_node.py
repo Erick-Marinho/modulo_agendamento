@@ -249,9 +249,39 @@ def _parse_date_fallback(user_preference: str, current_date: datetime) -> Option
         f"Fallback processando: '{user_preference}' (data atual: {current_date.strftime('%Y-%m-%d')})"
     )
 
-    # Extrair "dia X" com regex mais robusta
+    # 🆕 NOVA LÓGICA: Tratar formato DD/MM/YYYY primeiro
     import re
-
+    
+    # Regex para formato DD/MM/YYYY ou DD/MM/YY
+    date_pattern = r"(\d{1,2})/(\d{1,2})/(\d{2,4})"
+    date_match = re.search(date_pattern, user_preference)
+    
+    if date_match:
+        try:
+            day = int(date_match.group(1))
+            month = int(date_match.group(2))
+            year = int(date_match.group(3))
+            
+            # Se ano tem 2 dígitos, assumir 20XX
+            if year < 100:
+                year += 2000
+            
+            # Validação básica
+            if not (1 <= day <= 31 and 1 <= month <= 12 and year >= current_date.year):
+                logger.warning(f"Data inválida: {day}/{month}/{year}")
+                return None
+            
+            # Criar data e retornar no formato correto
+            target_date = datetime(year, month, day)
+            result = target_date.strftime("%Y-%m-%d")
+            logger.info(f"Fallback resultado (formato DD/MM/YYYY): {result}")
+            return result
+            
+        except ValueError as e:
+            logger.warning(f"Erro ao processar data DD/MM/YYYY: {e}")
+            # Continuar para tentar outros formatos
+    
+    # Extrair "dia X" com regex mais robusta
     day_match = re.search(r"dia\s+(\d{1,2})", user_preference_lower)
     if day_match:
         try:
@@ -504,8 +534,31 @@ async def check_availability_node(
                 logger.info(f"    - Condição 1 (data preferida encontrada): {condition_1}")
                 logger.info(f"    - Condição 2 (data específica + traduzida): {condition_2}")
 
-                if condition_1:
-                    logger.info("🟢 FLUXO: Data preferida encontrada - resposta positiva")
+                # 🆕 CORREÇÃO CRÍTICA: Verificar se a data encontrada É a data que o usuário pediu
+                # Mesmo que preferred_date_found seja False, se as datas coincidem, não dizer que está indisponível
+                user_requested_date_matches = False
+                if translated_date and found_date:
+                    user_requested_date_matches = (translated_date == found_date)
+                    logger.info(f"🔍 DEBUG CRÍTICO - Datas coincidem? translated_date='{translated_date}' vs found_date='{found_date}' -> {user_requested_date_matches}")
+                
+                # 🆕 VERIFICAÇÃO EXTRA: Comparar também com a data original do usuário
+                user_date_also_matches = False
+                if details.date_preference and found_date:
+                    # Tentar converter a data do usuário para o formato correto para comparação
+                    try:
+                        # Se está no formato DD/MM/YYYY, converter para YYYY-MM-DD
+                        if "/" in details.date_preference:
+                            parts = details.date_preference.split("/")
+                            if len(parts) == 3:
+                                day, month, year = parts
+                                user_date_formatted = f"{year.zfill(4)}-{month.zfill(2)}-{day.zfill(2)}"
+                                user_date_also_matches = (user_date_formatted == found_date)
+                                logger.info(f"🔍 DEBUG EXTRA - Data original do usuário '{details.date_preference}' convertida para '{user_date_formatted}' vs found_date='{found_date}' -> {user_date_also_matches}")
+                    except Exception as e:
+                        logger.warning(f"Erro na verificação extra de data: {e}")
+
+                if condition_1 or user_requested_date_matches or user_date_also_matches:  # 🔧 ADICIONADAS AS CONDIÇÕES DE MATCH
+                    logger.info("🟢 FLUXO: Data preferida encontrada OU data coincide - resposta positiva")
                     response_text = _format_date_response(
                         date_formatted,
                         details.professional_name,
@@ -514,7 +567,7 @@ async def check_availability_node(
                         is_requested_date=True,
                     )
                 else:
-                    logger.info("🔵 FLUXO: Próxima data disponível encontrada")
+                    logger.info("🔵 FLUXO: Próxima data disponível encontrada (diferente da solicitada)")
                     
                     # 🆕 EXTRAIR DIA DA DATA PREFERIDA PARA MENSAGEM
                     user_date_formatted = None

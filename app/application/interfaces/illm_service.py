@@ -50,6 +50,7 @@ class ILLMService(ABC):
         specialty: Optional[str],
         date_preference: Optional[str],
         time_preference: Optional[str],
+        patient_name: Optional[str] = None,
     ) -> str:
         """
         Gera uma pergunta para o usuário solicitando informações de agendamento faltantes.
@@ -61,6 +62,7 @@ class ILLMService(ABC):
             specialty: Especialidade já coletada.
             date_preference: Preferência de data já coletada.
             time_preference: Preferência de horário já coletada.
+            patient_name: Nome do paciente já coletado.
 
         Returns:
             A pergunta gerada pelo LLM para ser enviada ao usuário.

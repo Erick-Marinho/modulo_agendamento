@@ -30,8 +30,15 @@ EXTRACT_SCHEDULING_DETAILS_TEMPLATE = ChatPromptTemplate.from_template(
         - "o mais breve possível", "breve possível", "quanto antes" → "quanto antes"
         - "próxima segunda", "segunda feira", "terça" → extrair o dia da semana mencionado
         - IMPORTANTE: Se o usuário mencionar expressões temporais vagas, SEMPRE extraia como uma preferência válida.
-    9. Se uma informação não for mencionada ou estiver incerta, use null.
-    10. IMPORTANTE: Para "service_type", se não for especificado explicitamente pelo usuário, sempre use "consulta" como padrão.
+    9. ✅ NOVA REGRA PARA NOME DO PACIENTE - Para "patient_name": Extraia o nome da pessoa que será atendida.
+        - "Meu nome é João", "Eu sou Maria", "Para João Silva" → extrair o nome mencionado
+        - "É para mim", "Quero agendar para mim" → null (aguardar nome específico)
+        - "Para minha filha Ana", "Para o José" → extrair "Ana", "José"
+        - Seja flexível com variações: "João", "João Silva", "Dr. João" (se for paciente, não médico)
+        - Se mencionar apenas "eu", "mim", "comigo" sem nome específico, use null
+        - IMPORTANTE: Se o usuário disser "meu nome é X" ou "eu sou X", sempre extrair X como patient_name
+    10. Se uma informação não for mencionada ou estiver incerta, use null.
+    11. IMPORTANTE: Para "service_type", se não for especificado explicitamente pelo usuário, sempre use "consulta" como padrão.
    
     INFORMAÇÕES A EXTRAIR:
     - "professional_name": Nome do profissional (ex: "Dr. Silva", "Dra. Maria")
@@ -40,63 +47,35 @@ EXTRACT_SCHEDULING_DETAILS_TEMPLATE = ChatPromptTemplate.from_template(
     - "time_preference": Turno da preferência (DEVE SER "manha" ou "tarde")
     - "specific_time": Horário específico (ex: "08:00", "14:30", "09:00") - FORMATO 24h HH:MM
     - "service_type": Tipo de atendimento (ex: "consulta", "retorno", "exame")
+    - "patient_name": Nome do paciente que será atendido (ex: "João Silva", "Maria")
    
     EXEMPLOS DE EXTRAÇÃO:
-    Conversa: "Quero marcar consulta com Dr João"
-    → {{ "professional_name": "Dr. João", "specialty": null, "date_preference": null, "time_preference": null, "specific_time": null, "service_type": "consulta" }}
+    Conversa: "Quero marcar consulta com Dr João para Maria Silva"
+    → {{ "professional_name": "Dr. João", "specialty": null, "date_preference": null, "time_preference": null, "specific_time": null, "service_type": "consulta", "patient_name": "Maria Silva" }}
    
-    Conversa: "Pediatra às 15h do dia 5"
-    → {{ "professional_name": null, "specialty": "Pediatria", "date_preference": "dia 5", "time_preference": "tarde", "specific_time": "15:00", "service_type": null }}
+    Conversa: "Meu nome é Carlos e quero pediatra às 15h do dia 5"
+    → {{ "professional_name": null, "specialty": "Pediatria", "date_preference": "dia 5", "time_preference": "tarde", "specific_time": "15:00", "service_type": null, "patient_name": "Carlos" }}
    
-    Conversa: "A especialidade é pediatra. Gostaria de marcar para as 10 da manhã."
-    → {{ "professional_name": null, "specialty": "Pediatria", "date_preference": null, "time_preference": "manha", "specific_time": "10:00", "service_type": null }}
+    Conversa: "Eu sou Ana. A especialidade é pediatra. Gostaria de marcar para as 10 da manhã."
+    → {{ "professional_name": null, "specialty": "Pediatria", "date_preference": null, "time_preference": "manha", "specific_time": "10:00", "service_type": null, "patient_name": "Ana" }}
 
-    Conversa: "Agendar com Dra. Ana para consulta dia 10 às 09:30."
-    → {{ "professional_name": "Dra. Ana", "specialty": null, "date_preference": "dia 10", "time_preference": "manha", "specific_time": "09:30", "service_type": "consulta" }}
+    Conversa: "Para minha filha Laura, agendar com Dra. Ana para consulta dia 10 às 09:30."
+    → {{ "professional_name": "Dra. Ana", "specialty": null, "date_preference": "dia 10", "time_preference": "manha", "specific_time": "09:30", "service_type": "consulta", "patient_name": "Laura" }}
 
-    Conversa: "Pode ser às 12:00 do dia 15 com o Dr. Carlos para um retorno."
-    → {{ "professional_name": "Dr. Carlos", "specialty": null, "date_preference": "dia 15", "time_preference": "tarde", "specific_time": "12:00", "service_type": "retorno" }}
+    ✅ NOVOS EXEMPLOS COM NOME DO PACIENTE:
+    Conversa: "Quero agendar para José Silva"
+    → {{ "professional_name": null, "specialty": null, "date_preference": null, "time_preference": null, "specific_time": null, "service_type": null, "patient_name": "José Silva" }}
+    
+    Conversa: "Meu nome é Maria"
+    → {{ "professional_name": null, "specialty": null, "date_preference": null, "time_preference": null, "specific_time": null, "service_type": null, "patient_name": "Maria" }}
+    
+    Conversa: "É para mim" 
+    → {{ "professional_name": null, "specialty": null, "date_preference": null, "time_preference": null, "specific_time": null, "service_type": null, "patient_name": null }}
+    
+    Conversa: "Quero agendar para Pedro"
+    → {{ "professional_name": null, "specialty": null, "date_preference": null, "time_preference": null, "specific_time": null, "service_type": null, "patient_name": "Pedro" }}
 
-    ✅ NOVOS EXEMPLOS COM HORÁRIOS ESPECÍFICOS:
-    Conversa: "As 8"
-    → {{ "professional_name": null, "specialty": null, "date_preference": null, "time_preference": "manha", "specific_time": "08:00", "service_type": null }}
-    
-    Conversa: "8:30"
-    → {{ "professional_name": null, "specialty": null, "date_preference": null, "time_preference": "manha", "specific_time": "08:30", "service_type": null }}
-    
-    Conversa: "As 8 e 30"
-    → {{ "professional_name": null, "specialty": null, "date_preference": null, "time_preference": "manha", "specific_time": "08:30", "service_type": null }}
-    
-    Conversa: "8 e 30"
-    → {{ "professional_name": null, "specialty": null, "date_preference": null, "time_preference": "manha", "specific_time": "08:30", "service_type": null }}
-
-    Conversa: "9 e 15"
-    → {{ "professional_name": null, "specialty": null, "date_preference": null, "time_preference": "manha", "specific_time": "09:15", "service_type": null }}
-
-    Conversa: "08:30"
-    → {{ "professional_name": null, "specialty": null, "date_preference": null, "time_preference": "manha", "specific_time": "08:30", "service_type": null }}
-
-    ✅ NOVOS EXEMPLOS COM DATA MAIS PRÓXIMA (CRÍTICO PARA RESOLVER LOOP):
-    Conversa: "A mais próxima"
-    → {{ "professional_name": null, "specialty": null, "date_preference": "a mais próxima", "time_preference": null, "specific_time": null, "service_type": null }}
-    
-    Conversa: "Quero a data mais próxima"
-    → {{ "professional_name": null, "specialty": null, "date_preference": "a mais próxima", "time_preference": null, "specific_time": null, "service_type": null }}
-    
-    Conversa: "A mais proxima disponível"
-    → {{ "professional_name": null, "specialty": null, "date_preference": "a mais próxima", "time_preference": null, "specific_time": null, "service_type": null }}
-    
-    Conversa: "Primeira data disponível"
-    → {{ "professional_name": null, "specialty": null, "date_preference": "primeira disponível", "time_preference": null, "specific_time": null, "service_type": null }}
-    
-    Conversa: "Quanto antes possível"
-    → {{ "professional_name": null, "specialty": null, "date_preference": "quanto antes", "time_preference": null, "specific_time": null, "service_type": null }}
-
-    Conversa: "Quero agendar consulta com Dr João para amanhã de tarde."
-    → {{ "professional_name": "Dr. João", "date_preference": "amanhã", "time_preference": "tarde", "specific_time": null, "service_type": "consulta", "specialty": null }}
-   
-    Conversa: "A especialidade é pediatria. Pode ser no período da manhã."
-    → {{ "specialty": "Pediatria", "time_preference": "manha", "specific_time": null, "professional_name": null, "date_preference": null, "service_type": null }}
+    // ... existing code ...
    
     HISTÓRICO COMPLETO DA CONVERSA:
     {conversation_history}

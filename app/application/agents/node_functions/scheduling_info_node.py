@@ -365,6 +365,11 @@ def _merge_scheduling_details(existing, new):
             if new.service_type is not None 
             else existing.service_type
         ),
+        patient_name=(
+            new.patient_name 
+            if new.patient_name is not None 
+            else existing.patient_name
+        ),
     )
 
     # 🔧 LOG DETALHADO PARA DEBUG

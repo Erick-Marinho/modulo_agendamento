@@ -531,4 +531,5 @@ def _merge_scheduling_details(
         time_preference=new.time_preference or existing.time_preference,
         specific_time=new.specific_time or existing.specific_time,
         service_type=new.service_type or existing.service_type or "consulta",
+        patient_name=new.patient_name or existing.patient_name,
     )

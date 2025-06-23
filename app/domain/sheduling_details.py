@@ -10,3 +10,4 @@ class SchedulingDetails(BaseModel):
     time_preference: Optional[str] = None
     specific_time: Optional[str] = None
     service_type: Optional[str] = "consulta"
+    patient_name: Optional[str] = None
