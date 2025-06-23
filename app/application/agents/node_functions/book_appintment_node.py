@@ -120,7 +120,9 @@ def _filter_times_by_preference(
             and AFTERNOON_RANGE[0] <= start_hour < AFTERNOON_RANGE[1]
         ):
             filtered.append(slot["horaInicio"])
-    return filtered
+    
+    # 🆕 LIMITE MÁXIMO: Apenas 3 horários
+    return filtered[:3]
 
 
 async def _validate_time_availability(
@@ -249,6 +251,8 @@ async def book_appointment_node(state: MessageAgentState) -> MessageAgentState:
 
         if not is_valid:
             # ❌ Horário inválido - solicitar nova escolha
+            # 🆕 LIMITE MÁXIMO: Apenas 3 horários
+            available_times = available_times[:3]
             times_list = [t[:5] for t in available_times]
             formatted_times = "\n".join(times_list)
             date_formatted = datetime.strptime(appointment_date, "%Y-%m-%d").strftime("%d/%m/%Y")

@@ -70,7 +70,6 @@ def _filter_times_by_preference(
 
     filtered = []
     for slot in available_times:
-        # 🔧 CORREÇÃO: Definir start_hour ANTES das condicionais
         start_hour = int(slot["horaInicio"].split(":")[0])
         
         if (
@@ -83,7 +82,9 @@ def _filter_times_by_preference(
             and AFTERNOON_RANGE[0] <= start_hour < AFTERNOON_RANGE[1]
         ):
             filtered.append(slot["horaInicio"])
-    return filtered
+    
+    # 🆕 LIMITE MÁXIMO: Apenas 3 horários
+    return filtered[:3]
 
 
 # --- NOVA FUNÇÃO AUXILIAR ---
@@ -183,6 +184,9 @@ def _format_date_response(
     """Formata a mensagem de resposta com base no contexto."""
     # Dividir os horários em uma lista
     times_list = times_str.split(", ")
+    
+    # 🆕 LIMITE MÁXIMO: Apenas 3 horários
+    times_list = times_list[:3]
     
     # Formatar cada horário em uma nova linha
     formatted_times = "\n".join(times_list)

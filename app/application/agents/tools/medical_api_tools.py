@@ -368,6 +368,8 @@ def create_check_availability_tool(
                                 message=f"Não encontrei horários disponíveis para {professional_name} no {date}{period_msg}. Posso verificar outros períodos ou datas?",
                             ).message
 
+                        # 🆕 LIMITE MÁXIMO: Apenas 3 horários
+                        available_times = available_times[:3]
                         times_list = [t[:5] for t in available_times]
                         formatted_times = "\n".join(times_list)
                         period_msg = (
