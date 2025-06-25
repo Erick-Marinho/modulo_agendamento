@@ -63,29 +63,26 @@ def clarification_node(state: MessageAgentState) -> MessageAgentState:
         if last_user_message and _detect_uncertainty_simple(last_user_message):
             logger.info("🎯 DETECTADA INCERTEZA SIMPLES: Redirecionando para especialidades")
             
-            # 🆕 CORREÇÃO: Verificar se missing_fields existe e não é None
+            # 🔧 CORREÇÃO SIMPLES: Se usuário está incerto sobre especialidade, sempre ajudar
             missing_fields_safe = missing_fields or []
             
-            # Verificar se falta especialidade ou profissional
-            needs_specialty_info = any(
-                field in ["nome do profissional", "especialidade", "nome do profissional ou especialidade"] 
-                for field in missing_fields_safe
+            # Se está perguntando sobre especialidade/profissional OU se não tem missing_fields
+            should_show_specialties = (
+                not missing_fields_safe or  # Sem campos específicos
+                any("especialidade" in field.lower() for field in missing_fields_safe) or  # Contém "especialidade"
+                any("profissional" in field.lower() for field in missing_fields_safe)  # Contém "profissional"
             )
             
             logger.info(f"🔍 DEBUG: missing_fields = {missing_fields_safe}")
-            logger.info(f"🔍 DEBUG: needs_specialty_info = {needs_specialty_info}")
+            logger.info(f"🔍 DEBUG: should_show_specialties = {should_show_specialties}")
             
-            # 🆕 LÓGICA MELHORADA: Se não há missing_fields específicos mas o usuário está incerto
-            # sobre especialidade, sempre ajudar
-            if needs_specialty_info or not missing_fields_safe:
+            if should_show_specialties:
                 logger.info("✅ REDIRECIONANDO: Para agent_tool_caller com contexto uncertainty_help")
                 return {
                     **state,
                     "next_step": "agent_tool_caller",
                     "conversation_context": "uncertainty_help",
                 }
-            else:
-                logger.info("❌ NÃO REDIRECIONOU: needs_specialty_info é False")
 
     if details is None:
         logger.warning(
@@ -121,11 +118,12 @@ def clarification_node(state: MessageAgentState) -> MessageAgentState:
         try:
             ai_response_text = llm_service.generate_clarification_question(
                 service_type=service_type_info,
-                missing_fields_list=priority_field,  # 🔧 Apenas UM campo por vez
+                missing_fields_list=priority_field,
                 professional_name=details.professional_name,
                 specialty=details.specialty,
                 date_preference=details.date_preference,
                 time_preference=details.time_preference,
+                patient_name=details.patient_name,
             )
             logger.info(f"Pergunta de esclarecimento gerada: {ai_response_text}")
         except Exception as e:
@@ -142,6 +140,7 @@ def clarification_node(state: MessageAgentState) -> MessageAgentState:
             **state,
             "messages": current_messages,
             "next_step": "END_AWAITING_USER",
+            "conversation_context": "scheduling_flow",
         }
     else:
         logger.info(

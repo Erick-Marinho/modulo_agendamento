@@ -87,7 +87,7 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
     # Inicializar serviço LLM
     llm_service = LLMFactory.create_llm_service("openai")
     
-    # 🔍 DEBUG CRÍTICO: Verificar estado completo
+    # 🔧 CORREÇÃO CRÍTICA: Verificar estado completo
     conversation_context = state.get("conversation_context")
     logger.info(f"🔍 DEBUG - conversation_context recuperado: '{conversation_context}'")
     logger.info(f"🔍 DEBUG - Todas as chaves do estado: {list(state.keys())}")
@@ -200,7 +200,7 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
             "conversation_context": classification,
         }
 
-    # 🔥 NOVA PRIORIDADE CRÍTICA: Verificar contextos específicos de agendamento PRIMEIRO
+    # 🔧 NOVA PRIORIDADE CRÍTICA: Verificar contextos específicos de agendamento PRIMEIRO
     
     # ✅ CORREÇÃO CRÍTICA: Verificar se estamos no meio de um fluxo de agendamento ANTES da classificação
     # Se tem detalhes existentes, campos faltantes ou contexto de agendamento, manter o fluxo
@@ -213,33 +213,21 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
             f"🔄 MANTENDO CONTEXTO DE AGENDAMENTO - Classificação: '{classification}', mas continuando fluxo"
         )
         
-        # ✅ DETECÇÃO ESPECÍFICA: Resposta de turno (manha/tarde) quando há campos faltantes
-        if (
-            existing_missing_fields
-            and any("turno" in field for field in existing_missing_fields)
-            and last_human_message_content.strip().lower() in ["manha", "manhã", "tarde"]
-        ):
-            logger.info(
-                f"🎯 PRIORIDADE ABSOLUTA: Usuário respondeu turno '{last_human_message_content}' - Forçando scheduling_info"
-            )
-            # Extrair dados forçadamente
-            new_details = llm_service.extract_scheduling_details(conversation_history_str)
-            updated_details = _merge_scheduling_details(existing_details, new_details)
-            
-            return {
-                **state,
-                "extracted_scheduling_details": updated_details,
-                "next_step": "scheduling_info",
-                "conversation_context": "scheduling_flow",
-            }
-        
         # Sempre extrair dados se estamos no contexto de agendamento
         new_details = llm_service.extract_scheduling_details(conversation_history_str)
         updated_details = _merge_scheduling_details(existing_details, new_details)
+        
+        # 🔧 CORREÇÃO CRÍTICA: Preservar informações existentes que são None na nova extração
+        if existing_details and not updated_details.specialty and existing_details.specialty:
+            logger.warning(f"🔧 PRESERVANDO specialty perdida: '{existing_details.specialty}'")
+            updated_details.specialty = existing_details.specialty
+            
+        if existing_details and not updated_details.professional_name and existing_details.professional_name:
+            logger.warning(f"🔧 PRESERVANDO professional_name perdido: '{existing_details.professional_name}'")
+            updated_details.professional_name = existing_details.professional_name
+        
         state["extracted_scheduling_details"] = updated_details
         logger.info(f"Dados de agendamento atualizados: {updated_details}")
-
-        # Continuar com lógica de agendamento...
 
     # Se está aguardando nova data, continuar no fluxo
     elif conversation_context == "awaiting_new_date_selection":
@@ -399,7 +387,7 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
             if not updated_details.time_preference:
                 calculated_missing_fields.append("turno de preferência")
 
-    # 🔧 CORREÇÃO CRÍTICA: Se extraiu informações de agendamento e faltam campos críticos
+    # 🔧 CORREÇÃO: Se extraiu informações de agendamento e faltam campos críticos
     if updated_details and calculated_missing_fields:
         logger.info(
             f"Agendamento detectado com campos faltando: {calculated_missing_fields}."
@@ -413,7 +401,7 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
                 **state,
                 "missing_fields": calculated_missing_fields,
                 "next_step": "scheduling_info",
-                "conversation_context": "scheduling_flow",
+                "conversation_context": "scheduling_flow",  # 🔧 MANTER CONTEXTO
             }
         else:
             logger.info("🆕 Primeira vez no agendamento - direcionando para clarification")
@@ -421,7 +409,7 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
                 **state,
                 "missing_fields": calculated_missing_fields,
                 "next_step": "clarification", 
-                "conversation_context": "scheduling_flow",
+                "conversation_context": "scheduling_flow",  # 🔧 DEFINIR CONTEXTO
             }
 
     current_next_step = state.get("next_step", "")

@@ -324,6 +324,7 @@ def _format_conversation_history(messages, max_messages: int = 5) -> str:
 def _merge_scheduling_details(existing, new):
     """
     Mescla detalhes de agendamento, priorizando informações mais recentes quando não forem None.
+    🔧 CORREÇÃO: Melhor preservação de dados existentes
     """
     if not existing:
         logger.info("Nenhum detalhe existente, retornando dados novos")
@@ -333,41 +334,41 @@ def _merge_scheduling_details(existing, new):
         logger.info("Nenhum detalhe novo, retornando dados existentes")
         return existing
 
-    # 🔧 LÓGICA MELHORADA: Priorizar valores não-None ao invés de só usar 'or'
+    # 🔧 LÓGICA MELHORADA: Priorizar valores não-None, mas preservar existentes quando novo é None
     merged = SchedulingDetails(
         professional_name=(
             new.professional_name 
-            if new.professional_name is not None 
+            if new.professional_name is not None and new.professional_name.strip()
             else existing.professional_name
         ),
         specialty=(
             new.specialty 
-            if new.specialty is not None 
+            if new.specialty is not None and new.specialty.strip()
             else existing.specialty
         ),
         date_preference=(
             new.date_preference 
-            if new.date_preference is not None 
+            if new.date_preference is not None and new.date_preference.strip()
             else existing.date_preference
         ),
         time_preference=(
             new.time_preference 
-            if new.time_preference is not None 
+            if new.time_preference is not None and new.time_preference.strip()
             else existing.time_preference
         ),
         specific_time=(
             new.specific_time 
-            if new.specific_time is not None 
+            if new.specific_time is not None and new.specific_time.strip()
             else existing.specific_time
         ),
         service_type=(
             new.service_type 
-            if new.service_type is not None 
+            if new.service_type is not None and new.service_type.strip()
             else existing.service_type
         ),
         patient_name=(
             new.patient_name 
-            if new.patient_name is not None 
+            if new.patient_name is not None and new.patient_name.strip()
             else existing.patient_name
         ),
     )
