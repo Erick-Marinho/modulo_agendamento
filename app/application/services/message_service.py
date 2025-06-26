@@ -50,19 +50,39 @@ class MessageService:
             thread_id = request_payload.phone_number
             config = {"configurable": {"thread_id": thread_id}}
 
-            message_text = request_payload.message
-
-            initial_state: MessageAgentState = {
-                "message": message_text,
-                "phone_number": request_payload.phone_number,
-                "message_id": request_payload.message_id,
-                "messages": [HumanMessage(content=request_payload.message)],
-                "next_step": "",
-                "conversation_context": None,
-                "extracted_scheduling_details": None,
-                "missing_fields": None,
-                "awaiting_user_input": None,
-            }
+            # 🔧 CORREÇÃO PRINCIPAL: Carregar estado anterior ao invés de recriar
+            try:
+                # Tentar carregar o estado anterior
+                checkpointer = self.message_agent.checkpointer
+                if checkpointer:
+                    previous_checkpoint = await checkpointer.aget_tuple(config)
+                    if previous_checkpoint and previous_checkpoint.checkpoint:
+                        # Carregar estado anterior
+                        previous_state = previous_checkpoint.checkpoint["channel_values"]
+                        logger.info(f"🔄 Estado anterior carregado: conversation_context='{previous_state.get('conversation_context')}'")
+                        
+                        # Adicionar apenas a nova mensagem ao estado existente
+                        initial_state: MessageAgentState = {
+                            **previous_state,  # 🔧 Preservar estado anterior
+                            "message": request_payload.message,  # Atualizar mensagem atual
+                            "phone_number": request_payload.phone_number,
+                            "message_id": request_payload.message_id,
+                            "messages": previous_state.get("messages", []) + [HumanMessage(content=request_payload.message)],  # 🔧 Adicionar nova mensagem
+                        }
+                        logger.info(f"✅ Estado preservado com contexto: '{initial_state.get('conversation_context')}'")
+                    else:
+                        # Primeira mensagem - criar estado inicial
+                        initial_state = self._create_initial_state(request_payload)
+                        logger.info("🆕 Primeira mensagem - criando estado inicial")
+                else:
+                    # Fallback se não há checkpointer
+                    initial_state = self._create_initial_state(request_payload)
+                    logger.warning("⚠️ Checkpointer não disponível - usando estado inicial")
+                    
+            except Exception as e:
+                logger.error(f"❌ Erro ao carregar estado anterior: {e}")
+                # Fallback para estado inicial
+                initial_state = self._create_initial_state(request_payload)
 
             logger.info("=== EXECUTANDO AGENTE ===")
             final_state = await self.message_agent.ainvoke(
@@ -111,3 +131,19 @@ class MessageService:
             )
             # Re-lança a exceção para que o FastAPI retorne um 500
             raise
+
+    def _create_initial_state(self, request_payload: MessageRequestPayload) -> MessageAgentState:
+        """
+        Cria o estado inicial para uma nova conversa.
+        """
+        return {
+            "message": request_payload.message,
+            "phone_number": request_payload.phone_number,
+            "message_id": request_payload.message_id,
+            "messages": [HumanMessage(content=request_payload.message)],
+            "next_step": "",
+            "conversation_context": None,
+            "extracted_scheduling_details": None,
+            "missing_fields": None,
+            "awaiting_user_input": None,
+        }
