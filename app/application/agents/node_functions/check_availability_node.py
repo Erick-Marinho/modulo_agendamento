@@ -481,7 +481,7 @@ async def check_availability_node(
         # VERIFICAÇÃO EXPLÍCITA DE DATA ESPECÍFICA
         SPECIFIC_DATE_KEYWORDS = ["dia", "hoje", "amanhã", "/"]
         user_asked_specific_day = any(
-            word in details.date_preference.lower() for word in SPECIFIC_DATE_KEYWORDS
+            word in (details.date_preference or "").lower() for word in SPECIFIC_DATE_KEYWORDS
         )
         logger.info(
             f"🔍 DEBUG - Usuário pediu data específica? {user_asked_specific_day}"
