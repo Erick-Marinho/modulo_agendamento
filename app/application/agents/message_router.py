@@ -42,6 +42,11 @@ class MessageRouter:
             )
             return AGENT_TOOL_CALLER_NODE_NAME
 
+        # 🆕 VERIFICAÇÃO PARA AWAITING_FINAL_DECISION
+        if conversation_context == "awaiting_final_decision":
+            logger.info("⏳ CONTEXTO AWAITING_FINAL_DECISION: Direcionando para other_node (finalizar)")
+            return "other_node"  # 🔧 USAR "other_node" EM VEZ DE "END"
+
         # Roteamento normal baseado em next_step (código existente)
         route_map = {
             "scheduling": "scheduling_node",
@@ -60,6 +65,7 @@ class MessageRouter:
             "fallback_node": "fallback_node",
             "book_appointment_node": "book_appointment_node",
             "check_availability_node": "check_availability_node",
+            "other_node": "other_node",  # 🔧 ADICIONAR ESTA LINHA
         }
 
         destination_node = route_map.get(next_step)

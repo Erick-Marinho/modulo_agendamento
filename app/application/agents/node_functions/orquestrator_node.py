@@ -2,7 +2,7 @@ import logging
 import re
 from typing import List
 
-from langchain_core.messages import BaseMessage, HumanMessage
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 
 from app.application.agents.state.message_agent_state import MessageAgentState
 from app.domain.sheduling_details import SchedulingDetails
@@ -127,6 +127,66 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
                 "next_step": "check_availability_node",
                 "conversation_context": "time_shift_completed",  # 🔧 CONTEXTO ESPECÍFICO
                 "missing_fields": [],  # 🔧 LIMPAR CAMPOS FALTANTES
+            }
+
+    # 🆕 DETECÇÃO DE RESPOSTAS NEGATIVAS para alternância de turno
+    if (conversation_context == "awaiting_time_shift" and 
+        any(word in last_human_message_content.lower() for word in ["não", "nao", "n"])):
+        
+        logger.info("🚫 DETECTADO RECUSA DE TURNO: Encerrando com mensagem simples")
+        
+        response_text = (
+            "Sem problemas! Infelizmente não temos horários disponíveis que atendam "
+            "suas preferências no momento. Quando quiser reagendar, estarei aqui para ajudar. "
+            "Tenha um ótimo dia!"
+        )
+        
+        return {
+            **state,
+            "messages": messages + [AIMessage(content=response_text)],
+            "conversation_context": "conversation_ended",
+            "next_step": "farewell"  # 🔧 CORRIGIDO: "farewell" em vez de "farewell_node"
+        }
+
+    # 🆕 PROCESSAR DECISÃO FINAL
+    if conversation_context == "awaiting_final_decision":
+        user_response = last_human_message_content.lower().strip()
+        
+        # Se quer tentar outro profissional
+        if any(word in user_response for word in ["outro", "profissional", "sim", "quero", "verificar"]):
+            logger.info("💡 USUÁRIO QUER: Tentar outro profissional")
+            
+            # Limpar o profissional atual para buscar outros
+            current_details = existing_details or SchedulingDetails()
+            updated_details = SchedulingDetails(
+                professional_name=None,  # 🔧 Limpar para buscar outros
+                specialty=current_details.specialty,
+                date_preference=current_details.date_preference,
+                time_preference=current_details.time_preference,
+                specific_time=current_details.specific_time,
+                service_type=current_details.service_type,
+                patient_name=current_details.patient_name
+            )
+            
+            return {
+                **state,
+                "extracted_scheduling_details": updated_details,
+                "next_step": "agent_tool_caller",
+                "conversation_context": "seeking_alternative_professional"
+            }
+        
+        # Se quer encerrar
+        else:
+            logger.info("👋 USUÁRIO QUER: Encerrar conversa")
+            response_text = (
+                "Sem problemas! Quando quiser reagendar, estarei aqui para ajudar. "
+                "Tenha um ótimo dia! 😊"
+            )
+            return {
+                **state,
+                "messages": messages + [AIMessage(content=response_text)],
+                "next_step": "farewell",
+                "conversation_context": "conversation_ended"
             }
 
     # Classificação inteligente usando LLM
