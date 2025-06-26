@@ -15,219 +15,204 @@ AGENT_TOOL_CALLER_NODE_NAME = "agent_tool_caller"
 
 def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
     """
-    Nó orquestrador que classifica a intenção do usuário e define o próximo passo.
+    Nó responsável pela orquestração inteligente das mensagens do usuário.
     """
-    logger.info("--- Executando nó orquestrador ---")
 
-    # Extrair informações do estado
-    messages = state.get("messages", [])
+    logger.info("--- Executando nó orquestrador ---")
+    llm_service = LLMFactory.create_llm_service("openai")
+
+    messages: List[BaseMessage] = state.get("messages", [])
+    existing_details = state.get("extracted_scheduling_details")
+    conversation_context = state.get("conversation_context", "")
+
     if not messages:
-        logger.warning("Nenhuma mensagem encontrada no estado.")
+        logger.error("Nenhuma mensagem encontrada no estado")
         return {**state, "next_step": "fallback_node"}
 
-    # Obter a última mensagem humana
+    # Obter o conteúdo da última mensagem humana
     last_human_message_content = ""
     for msg in reversed(messages):
         if isinstance(msg, HumanMessage):
-            last_human_message_content = msg.content.lower().strip()
+            last_human_message_content = msg.content
             break
+
+    if not last_human_message_content:
+        logger.error("Nenhuma mensagem humana encontrada")
+        return {**state, "next_step": "fallback_node"}
 
     logger.info(f"Orquestrador classificando mensagem: '{last_human_message_content}'")
 
-    # 🆕 NOVA DETECÇÃO: "Não sei" após lista de profissionais
-    # Verificar se o bot mostrou lista de profissionais nas últimas 2 mensagens
-    recent_ai_messages = [msg.content.lower() for msg in messages[-2:] if 'AI' in str(type(msg))]
-    showed_professional_list = any(
-        ("encontrei os seguintes profissionais" in msg or 
-         "para a especialidade" in msg or
-         "gostaria de agendar com algum deles" in msg)
-        for msg in recent_ai_messages
-    )
-    
-    # Detectar expressões de incerteza
-    uncertainty_phrases = [
-        "não sei", "nao sei", "naõ sei",
-        "não tenho certeza", "nao tenho certeza", 
-        "qualquer um", "tanto faz", "qualquer",
-        "não conheço", "nao conheço", "não conheco",
-        "você decide", "voce decide",
-        "o que você recomenda", "o que voce recomenda",
-        "não faço ideia", "nao faco ideia"
-    ]
-    
-    user_expressed_uncertainty = any(phrase in last_human_message_content for phrase in uncertainty_phrases)
-    
-    # 🆕 RESPOSTA ESPECÍFICA: Quando usuário diz "não sei" após ver lista de profissionais
-    if showed_professional_list and user_expressed_uncertainty:
-        logger.info(f"🎯 DETECTADO: Usuário expressa incerteza '{last_human_message_content}' após ver lista de profissionais")
-        
-        # Buscar qual especialidade foi mostrada no contexto
-        extracted_details = state.get("extracted_scheduling_details")
-        specialty_name = extracted_details.specialty if extracted_details else "dessa especialidade"
-        
-        gentle_response = (
-            f"Entendo! No momento, esses são os únicos profissionais de {specialty_name} "
-            f"que temos disponíveis na clínica.\n\n"
-            f"Você pode escolher qualquer um deles - todos são excelentes profissionais. "
-            f"Ou, se preferir, posso verificar outra especialidade para você.\n\n"
-            f"O que você gostaria de fazer?"
-        )
-        
-        from langchain_core.messages import AIMessage
-        return {
-            **state,
-            "messages": messages + [AIMessage(content=gentle_response)],
-            "next_step": "completed",
-            "conversation_context": "professional_guidance_given",
-        }
-
-    # Preparar histórico de conversa
-    conversation_history_str = _format_conversation_history_for_prompt(messages)
-    
-    # Inicializar serviço LLM
-    llm_service = LLMFactory.create_llm_service("openai")
-    
-    # 🔧 CORREÇÃO CRÍTICA: Verificar estado completo
-    conversation_context = state.get("conversation_context")
+    # Debugs para entender o estado
     logger.info(f"🔍 DEBUG - conversation_context recuperado: '{conversation_context}'")
     logger.info(f"🔍 DEBUG - Todas as chaves do estado: {list(state.keys())}")
+
+    # Debug das últimas mensagens
+    ai_messages = [msg for msg in messages if hasattr(msg, 'type') and msg.type == 'ai']
+    human_messages = [msg for msg in messages if isinstance(msg, HumanMessage)]
     
-    # 🚨 CORREÇÃO CRÍTICA: Detectar seleção de horário por contexto das mensagens
-    # Se não há contexto salvo, mas detectamos padrão de seleção de horário
-    if not conversation_context or conversation_context != "awaiting_slot_selection":
+    if ai_messages:
+        last_ai_content = ai_messages[-1].content[:100] + "..." if len(ai_messages[-1].content) > 100 else ai_messages[-1].content
+        logger.info(f"🔍 DEBUG - Última mensagem AI: '{last_ai_content.lower()}'")
+    
+    if human_messages:
+        logger.info(f"🔍 DEBUG - Última mensagem Human: '{human_messages[-1].content}'")
+
+    # Criar contexto para classificação
+    conversation_history_str = _format_conversation_history_for_prompt(messages, max_messages=4)
+    logger.info(f"🧠 Contexto para classificação:\n{conversation_history_str}")
+
+    # 🔧 NOVA CORREÇÃO: Detectar respostas afirmativas para alternar turno
+    # ANTES da classificação inteligente
+    
+    # Verificar se estamos em contexto de pergunta sobre alternar turno
+    missing_fields = state.get("missing_fields", [])
+    is_asking_time_preference = "turno de preferência" in missing_fields
+    
+    # Detectar se a última mensagem AI perguntou sobre outro turno
+    last_ai_message = ""
+    for msg in reversed(messages):
+        if hasattr(msg, 'type') and msg.type == 'ai':
+            last_ai_message = msg.content.lower()
+            break
+    
+    asked_about_other_shift = any(phrase in last_ai_message for phrase in [
+        "gostaria de tentar outro turno",
+        "quer outro turno", 
+        "outro período",
+        "outro horário", 
+        "tentar outro turno"
+    ])
+    
+    # 🔧 CONDIÇÃO CRÍTICA: Se perguntou sobre alternar turno E usuário deu resposta afirmativa
+    if (is_asking_time_preference or asked_about_other_shift) and existing_details:
+        affirmative_responses = [
+            "quero", "sim", "ok", "pode ser", "tudo bem", "ta bom", "tá bom",
+            "perfeito", "beleza", "claro", "certeza", "vamos", "aceito",
+            "concordo", "positivo", "yes", "é", "eh", "uhum", "uh-hum",
+            "claro", "certo", "correto", "isso", "exato", "perfeito",
+            "show", "ótimo", "otimo", "legal", "bacana", "massa",
+            "vale", "valeu", "vamos nessa", "por favor", "pfv"
+        ]
         
-        # Verificar últimas 2 mensagens para detectar padrão
-        if len(messages) >= 2:
-            last_ai_message = None
-            last_human_message = None
+        user_wants_time_shift = any(
+            response in last_human_message_content.lower() 
+            for response in affirmative_responses
+        )
+        
+        if user_wants_time_shift:
+            logger.info(f"🔥 DETECTADO ALTERNAR TURNO: '{last_human_message_content}' - Alternando automaticamente!")
             
-            # Buscar última mensagem do assistente e última do usuário
-            for msg in reversed(messages):
-                if hasattr(msg, 'content') and msg.content:
-                    if 'AI' in str(type(msg)) and not last_ai_message:
-                        last_ai_message = msg.content.lower()
-                    elif 'Human' in str(type(msg)) and not last_human_message:
-                        last_human_message = msg.content.lower()
-                if last_ai_message and last_human_message:
-                    break
+            # Alternar o turno mantendo TODOS os outros dados
+            current_time_preference = existing_details.time_preference or "manha"
+            new_time_preference = "tarde" if current_time_preference == "manha" else "manha"
             
-            logger.info(f"🔍 DEBUG - Última mensagem AI: '{last_ai_message[:100] if last_ai_message else None}...'")
-            logger.info(f"🔍 DEBUG - Última mensagem Human: '{last_human_message}'")
+            logger.info(f"🔄 ALTERNANDO: {current_time_preference} → {new_time_preference}")
             
-            # Detectar se estamos em seleção de horário
-            if (last_ai_message and last_human_message and 
-                ("horários" in last_ai_message or "prefere?" in last_ai_message or 
-                 "qual você prefere" in last_ai_message or "encontrei os seguintes" in last_ai_message) and
-                (re.search(r'\b\d{1,2}:\d{2}\b', last_human_message) or 
-                 re.search(r'\b\d{1,2}\s*e\s*\d{2}\b', last_human_message) or
-                 any(time in last_human_message for time in ["8:30", "8 e 30", "08:30", "as 8", "9:30", "7:30"]))):
-                
-                logger.info("🔥 DETECÇÃO FORÇADA: Contexto de seleção de horário identificado!")
-                conversation_context = "awaiting_slot_selection"
+            # 🔧 PRESERVAR ABSOLUTAMENTE TODOS OS DADOS
+            updated_details = SchedulingDetails(
+                professional_name=existing_details.professional_name,
+                specialty=existing_details.specialty,                  
+                date_preference=existing_details.date_preference,      
+                time_preference=new_time_preference,                   # ✅ SÓ ESTE MUDA
+                specific_time=None,                                    # Reset apenas specific_time
+                service_type=existing_details.service_type or "consulta",
+                patient_name=existing_details.patient_name,           
+            )
+            
+            logger.info(f"✅ Detalhes preservados com novo turno: {updated_details}")
+            
+            return {
+                **state,
+                "extracted_scheduling_details": updated_details,
+                "next_step": "check_availability_node",
+                "conversation_context": "time_shift_completed",  # 🔧 CONTEXTO ESPECÍFICO
+                "missing_fields": [],  # 🔧 LIMPAR CAMPOS FALTANTES
+            }
 
-    # 🔥 PRIORIDADE ABSOLUTA: Se está aguardando seleção de horário, ir para agendamento
-    if conversation_context == "awaiting_slot_selection":
-        logger.info("🔥 PRIORIDADE ABSOLUTA: Contexto 'awaiting_slot_selection' - Indo para agendamento!")
-        
-        # Extrair informações existentes
-        existing_details = state.get("extracted_scheduling_details")
-        
-        # Extrair detalhes atualizados (incluindo specific_time)
-        new_details = llm_service.extract_scheduling_details(conversation_history_str)
-        updated_details = _merge_scheduling_details(existing_details, new_details)
-        
-        logger.info(f"📋 Detalhes para agendamento: {updated_details}")
-        
-        return {
-            **state,
-            "extracted_scheduling_details": updated_details,
-            "next_step": "book_appointment_node",
-            "conversation_context": "completing_appointment",
-        }
-
-    # 🆕 DETECÇÃO INTELIGENTE: Nome de profissional após listagem
-    # Verificar se o bot mostrou lista de profissionais recentemente
-    recent_ai_messages = [msg.content.lower() for msg in messages[-3:] if 'AI' in str(type(msg))]
-    showed_professional_list = any(
-        ("clara joaquina" in msg or "joão josé" in msg or "encontrei os seguintes profissionais" in msg)
-        for msg in recent_ai_messages
-    )
-
-    # Se mostrou lista e usuário respondeu com nome simples, tratar como scheduling_info
-    simple_name_responses = ["clara", "joão", "silva", "maria", "ana", "carlos"]
-    if (showed_professional_list and 
-        last_human_message_content.strip().lower() in simple_name_responses):
-        
-        logger.info(f"🎯 DETECÇÃO INTELIGENTE: Nome '{last_human_message_content}' após listagem - Forçando scheduling_info")
-        classification = "scheduling_info"
-
-    # 🧠 CLASSIFICAÇÃO INTELIGENTE COM CONTEXTO
-    # Obter últimas mensagens para contexto
-    recent_messages = messages[-6:] if len(messages) >= 6 else messages[:-1]
-    
-    # Formatar contexto da conversa
-    conversation_context = ""
-    if recent_messages:
-        context_parts = []
-        for msg in recent_messages:
-            if hasattr(msg, 'content'):
-                speaker = "Sistema" if 'AI' in str(type(msg)) else "Usuário"
-                context_parts.append(f"{speaker}: {msg.content}")
-        conversation_context = "\n".join(context_parts)
-    
-    logger.info(f"🧠 Contexto para classificação:\n{conversation_context}")
-    
-    # Classificar mensagem usando contexto inteligente
+    # Classificação inteligente usando LLM
     classification = llm_service.classify_message_with_context(
         message=last_human_message_content,
-        context=conversation_context
+        context=conversation_history_str,
     )
     logger.info(f"🎯 Classificação inteligente: '{classification}'")
 
-    # Extrair detalhes existentes do estado
-    existing_details = state.get("extracted_scheduling_details")
-    existing_missing_fields = state.get("missing_fields", [])
-    existing_context = state.get("conversation_context")
+    # CORREÇÃO: Se estamos no contexto de agendamento, manter sempre
+    if conversation_context == "scheduling_flow":
+        logger.info(f"🔄 MANTENDO CONTEXTO DE AGENDAMENTO - Classificação: '{classification}', mas continuando fluxo")
 
-    # Verificar se é uma query de API
-    if classification in ["api_query", "specialty_selection"]:
-        logger.info(
-            f"🎯 QUERY DE API detectada: '{classification}' - Direcionando para tool"
-        )
-        return {
-            **state,
-            "next_step": AGENT_TOOL_CALLER_NODE_NAME,
-            "conversation_context": classification,
-        }
-
-    # 🔧 NOVA PRIORIDADE CRÍTICA: Verificar contextos específicos de agendamento PRIMEIRO
-    
-    # ✅ CORREÇÃO CRÍTICA: Verificar se estamos no meio de um fluxo de agendamento ANTES da classificação
-    # Se tem detalhes existentes, campos faltantes ou contexto de agendamento, manter o fluxo
-    if (
-        existing_details
-        or existing_missing_fields
-        or existing_context == "scheduling_flow"
-    ):
-        logger.info(
-            f"🔄 MANTENDO CONTEXTO DE AGENDAMENTO - Classificação: '{classification}', mas continuando fluxo"
-        )
-        
-        # Sempre extrair dados se estamos no contexto de agendamento
+    # Extrair dados se for relacionado a agendamento
+    if classification in ["scheduling", "scheduling_info"] or conversation_context == "scheduling_flow":
         new_details = llm_service.extract_scheduling_details(conversation_history_str)
         updated_details = _merge_scheduling_details(existing_details, new_details)
-        
-        # 🔧 CORREÇÃO CRÍTICA: Preservar informações existentes que são None na nova extração
-        if existing_details and not updated_details.specialty and existing_details.specialty:
-            logger.warning(f"🔧 PRESERVANDO specialty perdida: '{existing_details.specialty}'")
-            updated_details.specialty = existing_details.specialty
-            
-        if existing_details and not updated_details.professional_name and existing_details.professional_name:
-            logger.warning(f"🔧 PRESERVANDO professional_name perdido: '{existing_details.professional_name}'")
-            updated_details.professional_name = existing_details.professional_name
-        
         state["extracted_scheduling_details"] = updated_details
         logger.info(f"Dados de agendamento atualizados: {updated_details}")
+
+    # 🔧 CORREÇÃO 2: Detectar quando usuário quer alternar turno (contexto específico)
+    elif conversation_context == "awaiting_time_shift":
+        logger.info(f"🔥 CONTEXTO 'awaiting_time_shift' - Verificando resposta afirmativa")
+        
+        # Detectar respostas afirmativas
+        affirmative_responses = [
+            "quero", "sim", "ok", "pode ser", "tudo bem", "ta bom", "tá bom",
+            "perfeito", "beleza", "claro", "certeza", "vamos", "aceito",
+            "concordo", "positivo", "yes", "é", "eh", "uhum", "uh-hum",
+            "claro", "certo", "correto", "isso", "exato", "perfeito",
+            "show", "ótimo", "otimo", "legal", "bacana", "massa",
+            "vale", "valeu", "vamos nessa", "por favor", "pfv"
+        ]
+        
+        user_wants_time_shift = any(
+            response in last_human_message_content.lower() 
+            for response in affirmative_responses
+        )
+        
+        if user_wants_time_shift:
+            logger.info(f"✅ DETECTADO: Usuário quer alternar turno - '{last_human_message_content}'")
+            
+            # 🔧 PRESERVAR TODOS OS DADOS EXISTENTES
+            if existing_details:
+                # Alternar o turno mantendo TODOS os outros dados
+                current_time_preference = existing_details.time_preference or "manha"
+                new_time_preference = "tarde" if current_time_preference == "manha" else "manha"
+                
+                logger.info(f"🔄 ALTERNANDO: {current_time_preference} → {new_time_preference}")
+                
+                # 🔧 PRESERVAR ABSOLUTAMENTE TODOS OS DADOS
+                updated_details = SchedulingDetails(
+                    professional_name=existing_details.professional_name,  # 🔧 MANTER
+                    specialty=existing_details.specialty,                  # 🔧 MANTER  
+                    date_preference=existing_details.date_preference,      # 🔧 MANTER
+                    time_preference=new_time_preference,                   # 🔧 ALTERNAR APENAS ESTE
+                    specific_time=None,                                    # Reset apenas specific_time
+                    service_type=existing_details.service_type or "consulta", # 🔧 MANTER
+                    patient_name=existing_details.patient_name,           # 🔧 MANTER
+                )
+                
+                logger.info(f"✅ Detalhes preservados com novo turno: {updated_details}")
+                
+                return {
+                    **state,
+                    "extracted_scheduling_details": updated_details,
+                    "next_step": "check_availability_node",
+                    "conversation_context": "time_shift_completed",  # 🔧 NOVO CONTEXTO
+                    "missing_fields": [],  # 🔧 LIMPAR CAMPOS FALTANTES
+                }
+            else:
+                logger.warning("⚠️ Não há detalhes existentes para preservar - redirecionando para clarification")
+                return {
+                    **state,
+                    "next_step": "clarification",
+                    "conversation_context": "scheduling_flow",
+                }
+        else:
+            # Se não é resposta afirmativa, tratar como resposta negativa
+            logger.info(f"❌ Usuário não quer alternar turno - '{last_human_message_content}'")
+            return {
+                **state,
+                "next_step": "clarification",
+                "conversation_context": "scheduling_flow",
+                "missing_fields": ["turno de preferência"],
+            }
 
     # Se está aguardando nova data, continuar no fluxo
     elif conversation_context == "awaiting_new_date_selection":
@@ -499,7 +484,7 @@ def _format_conversation_history_for_prompt(
         if isinstance(msg, HumanMessage):
             formatted.append(f"Usuário: {msg.content}")
         else:  # AIMessage
-            formatted.append(f"Assistente: {msg.content}")
+            formatted.append(f"Sistema: {msg.content}")
     return "\n".join(formatted)
 
 

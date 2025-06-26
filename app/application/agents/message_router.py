@@ -19,6 +19,15 @@ class MessageRouter:
             f"Roteando (from route_orquestrator) com base no next_step: '{next_step}', conversation_context: '{conversation_context}'"
         )
 
+        # 🆕 VERIFICAÇÃO PARA TROCA DE TURNO
+        if conversation_context == "time_shift_completed":
+            logger.info("🔄 CONTEXTO TIME_SHIFT_COMPLETED: Direcionando para check_availability_node")
+            return "check_availability_node"
+            
+        if conversation_context == "awaiting_time_shift":
+            logger.info("⏳ CONTEXTO AWAITING_TIME_SHIFT: Mantendo no orquestrador")
+            return "orquestrator_node"  # Voltar para o orquestrador processar a resposta
+
         # 🆕 VERIFICAÇÃO DE CONTEXTO PRIMEIRO
         if conversation_context == "awaiting_date_selection":
             logger.info(
@@ -50,6 +59,7 @@ class MessageRouter:
             AGENT_TOOL_CALLER_NODE_NAME.lower(): AGENT_TOOL_CALLER_NODE_NAME,
             "fallback_node": "fallback_node",
             "book_appointment_node": "book_appointment_node",
+            "check_availability_node": "check_availability_node",
         }
 
         destination_node = route_map.get(next_step)

@@ -683,16 +683,16 @@ async def check_availability_node(
                     "next_step": "completed",
                 }
         
-        # Resposta genérica quando não encontra nada
+        # 🔧 CORREÇÃO: Resposta quando não encontra horários (sem "próximo mês")
         response_text = (
             f"Puxa, parece que o(a) {details.professional_name} não possui "
             f"horários disponíveis no período da {details.time_preference} "
-            f"para este mês. Gostaria de tentar no próximo mês ou para outro turno?"
+            f"para este mês. Gostaria de tentar outro turno?"
         )
         return {
             **state,
             "messages": current_messages + [AIMessage(content=response_text)],
-            "conversation_context": "awaiting_new_date_selection",
+            "conversation_context": "awaiting_time_shift",  # 🔧 CONTEXTO ESPECÍFICO
             "next_step": "completed",
         }
 
