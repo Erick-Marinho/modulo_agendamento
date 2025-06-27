@@ -65,7 +65,7 @@ def orquestrator_node(state: MessageAgentState) -> MessageAgentState:
     # ANTES da classificação inteligente
     
     # Verificar se estamos em contexto de pergunta sobre alternar turno
-    missing_fields = state.get("missing_fields", [])
+    missing_fields = state.get("missing_fields") or []
     is_asking_time_preference = "turno de preferência" in missing_fields
     
     # Detectar se a última mensagem AI perguntou sobre outro turno

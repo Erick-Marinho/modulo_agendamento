@@ -144,6 +144,6 @@ class MessageService:
             "next_step": "",
             "conversation_context": None,
             "extracted_scheduling_details": None,
-            "missing_fields": None,
+            "missing_fields": [],
             "awaiting_user_input": None,
         }
